@@ -1,0 +1,69 @@
+#includeonce macros.tre
+#include keywordstext.tre
+
+keywords/thumb: keywords/thumbnail
+m_centerXY
+
+keywords/previewback: root
+m_offsetLT
+
+keywords/thumbnail: root
+m_offsetLT
+
+keywords/addkeywords_label: root
+m_offsetLT
+m_displayfont12
+
+keywords/addkeyword: keywords/addkeyword_base
+m_offsetLTRB
+
+keywords/addkeyword_base: root
+m_offsetLT
+
+keywords/keywordlist: keywords/keywordlist_base
+m_offsetLT
+
+keywords/keywordlist_base: root
+m_offsetLT
+
+keywords/keywords_label: root
+m_offsetLT
+m_displayfont12
+
+keywords/readonly_label: root
+m_offsetLT
+m_displayfont12
+Property virtualfontsize 14
+Property fontleading 14
+m_hidden
+
+keywords/name: root
+m_offsetLT
+
+keywords/date: root
+m_offsetLT
+
+#-----------------------------------------------------------
+# BUTTONGROUP
+#-----------------------------------------------------------
+
+keywords/addbutton-label: keywords/addbutton
+m_buttonfontC
+keywords/addbutton: root
+m_buttontypecolor
+m_offsetLT
+
+#keywords/addbutton: root
+#m_offsetLT
+
+keywords/removebutton-label: keywords/removebutton
+m_buttonfontC
+keywords/removebutton: root
+m_buttontypecolor
+m_offsetLT
+
+keywords/closebutton-label: keywords/closebutton
+m_buttonfontC
+keywords/closebutton: root
+m_buttontypecolor
+m_offsetLT

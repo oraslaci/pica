@@ -1,0 +1,183 @@
+#Label makemoviepanel/audio_settings_title
+#Audio Options
+
+#Label makemoviepanel/trimaudio_label
+#Truncate audio
+
+#Label makemoviepanel/fitaudio_label
+#Fit photos into audio
+
+#Label makemoviepanel/loopphoto_label
+#Loop photos to match audio
+
+Label makemoviepanel/rewind
+Back to selected slide
+
+Tooltip makemoviepanel/addclips
+Get more clips from Photo Library
+
+#Label makemoviepanel/addtomovie
+#Add
+
+Tooltip makemoviepanel/addtomovie
+Add the selected clip(s) to the end of the movie
+
+#Label makemoviepanel/deleteclips
+#Remove
+
+Tooltip makemoviepanel/deleteclips
+Remove the selected clip(s) from the tray
+
+Label makemoviepanel/durationslider_label
+Slide Duration
+
+Label makemoviepanel/lengthslider_label
+Total Photos
+
+Label makemoviepanel/burstslider_label
+Don't filter by time taken 
+
+Label makemoviepanel/transitionslider_label
+Overlap
+
+#Global Buttons
+
+Label makemoviepanel/export_youtube
+YT
+
+#Tooltip makemoviepanel/export_youtube
+#Upload to YouTube
+
+Label makemoviepanel/render
+Create Movie
+
+#Tooltip makemoviepanel/render
+#render_tooltip
+
+#Label makemoviepanel/resetbutton
+#Reset
+
+#Tooltip makemoviepanel/resetbutton
+#reset_tooltip
+
+Label makemoviepanel/cancel
+Close
+
+Label makemoviepanel/recompute
+Apply
+
+#Tooltip makemoviepanel/cancel
+#cancel_tooltip
+
+#Tabs
+
+Label makemoviepanel/tab1
+Movie
+
+Label makemoviepanel/moviesize_label
+Dimensions
+
+Label makemoviepanel/show_captions_label
+Show Captions
+
+Label makemoviepanel/crop_to_fit_label
+Full frame photo crop
+
+Label makemoviepanel/remove_low_res_faces_label
+Remove Low Resolution Faces
+
+Label makemoviepanel/ordering_header_label
+Ordering of Slides:
+
+Label makemoviepanel/smart_order_label
+Best Transitions
+
+Label makemoviepanel/album_order_label
+Album Order
+
+Label makemoviepanel/chronological_order_label
+Chronological
+
+Label makemoviepanel/audio_label
+Audio Track:
+
+Label makemoviepanel/add_audio
+Load...
+
+Label makemoviepanel/remove_audio
+Clear
+
+#Label makemoviepanel/albumname
+#Audio Track:
+
+Label makemoviepanel/aoptions_label
+Options
+
+Label makemoviepanel/transtype_label
+Transition Style
+
+Label makemoviepanel/tab2
+Slide
+
+Label makemoviepanel/tab3
+Clips
+
+Label makemoviepanel/tab3
+Options
+
+
+#Tab2
+
+Label makemoviepanel/font_label
+Font:
+
+Label makemoviepanel/size_label
+Size:
+
+Label makemoviepanel/style_label
+Style:
+
+Label makemoviepanel/templatetext
+Template:
+
+Label makemoviepanel/text_color_label
+Text color
+
+Label makemoviepanel/back_color_label
+Background color
+
+Label makemoviepanel/addclips
+Get More...
+
+Tooltip makemoviepanel/bold
+Bold
+
+Tooltip makemoviepanel/italic
+Italic
+
+Tooltip makemoviepanel/outline
+Automatic Outline (like movie subtitles)
+
+Tooltip makemoviepanel/insert_slide
+Add a new text slide
+
+Tooltip makemoviepanel/remove_slide
+Remove the selected slide
+
+Tooltip makemoviepanel/add_audio
+Add an audio track to this movie
+
+Tooltip makemoviepanel/remove_audio
+Remove the audio track
+
+Tooltip makemoviepanel/render
+Create a movie, then go to Edit mode
+
+Tooltip makemoviepanel/export_youtube
+Create a movie, then upload to YouTube
+
+Tooltip makemoviepanel/cancel
+Close Movie Maker panel
+
+Tooltip makemoviepanel/recompute
+Generate a new sequence

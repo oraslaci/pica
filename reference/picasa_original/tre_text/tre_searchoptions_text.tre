@@ -1,0 +1,106 @@
+#-----------------------------------------------------------
+# INCLUDES 
+#-----------------------------------------------------------
+#includeonce macros.tre
+#include searchoptions_text.tre
+#-----------------------------------------------------------
+
+#searchoptions/searchbase: searchoptions/searchbackground
+#m_offsetLT
+#m_scaleX
+
+#searchoptions/boxleft: searchoptions/searchbackground
+#m_offsetT
+#m_alignL
+
+#searchoptions/boxright: searchoptions/searchbackground
+#m_offsetT
+#m_alignR
+
+searchoptions/viewallbutton-label: searchoptions/viewallbutton
+m_displayfont12
+XConstraint 0.5, 0.5, 3
+YConstraint 0.5, 0.5, 0
+searchoptions/viewallbutton: searchoptions/searchbackground
+m_buttontypecolor3
+m_offsetLT
+
+#searchoptions/digicam: searchoptions/searchcenter
+#m_offsetLT
+#m_hidden
+
+#searchoptions/similarrect: searchoptions/searchcenter
+#m_offsetLT
+
+#searchoptions/similarthumb: searchoptions/similarclip
+#m_offsetLT
+#Property croptofit
+
+#searchoptions/similarclip: searchoptions/searchcenter
+#m_offsetLT
+
+#searchoptions/loadsim-label: searchoptions/loadsim
+#m_buttonfontC
+#searchoptions/loadsim: searchoptions/searchcenter
+#m_offsetLT
+#m_buttontypecolor
+
+#searchoptions/clearsim-label: searchoptions/clearsim
+#m_buttonfontC
+#searchoptions/clearsim: searchoptions/searchcenter
+#m_offsetLT
+#m_buttontypecolor
+
+#searchoptions/savetoalbum: searchoptions/searchcenter
+#m_offsetLT
+#m_hidden
+
+searchoptions/label_searchresult: searchoptions/searchbackground
+m_offsetLT
+m_displayfont12
+m_hidden
+searchoptions/searchresult: searchoptions/searchbackground
+m_offsetLT
+m_displayfont12
+
+#searchoptions/timecontainer: searchoptions/searchcenter
+#m_offsetLT
+#m_hidden
+
+#-----------------------------------------------------------
+#Text Labels
+#-----------------------------------------------------------
+
+searchoptions/label_search1: searchoptions/searchbackground
+m_displayfont12
+m_offsetRT
+
+#searchoptions/label_searchall: searchoptions/searchcenter
+#m_displayfont12
+#Property textalign right
+#m_offsetLT
+#m_hidden
+
+#searchoptions/label_searchnewer: searchoptions/searchcenter
+#m_displayfont12
+#m_offsetLT
+#m_hidden
+
+#searchoptions/label_search2: searchoptions/searchcenter
+#m_displayfont12
+#m_offsetLT
+
+searchoptions/facesearch: searchoptions/searchcenter
+m_offsetLT
+m_hidden
+
+searchoptions/dupesearch: searchoptions/searchcenter
+m_offsetLT
+m_hidden
+#-----------------------------------------------------------
+searchoptions/searchcenter: searchoptions/searchbackground
+m_offsetLT
+#m_centerX
+
+searchoptions/searchbackground: root
+m_offsetLTR

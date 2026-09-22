@@ -1,0 +1,177 @@
+#-----------------------------------------------------------
+# INCLUDES 
+#-----------------------------------------------------------
+#includeonce macros.tre
+#-----------------------------------------------------------
+
+#-----------------------------------------------------------
+#Bicubic Picture
+#-----------------------------------------------------------
+editoneup/oneup: editoneup/bicubiccontainer
+m_centerXY
+#Property scaleclamp 1.5
+
+editoneup/bicubiccontainer: editoneup/back
+m_scaleXY
+
+editoneup/back: root
+m_scaleXY
+
+editoneup/auto2: root
+m_scaleX
+YConstraint 0, 0, 0
+YConstraint 1, 1, -97
+
+#-----------------------------------------------------------
+#Exit Slideshow
+#-----------------------------------------------------------
+editoneup/exit_icon: editoneup/exit
+m_buttoniconleft
+
+editoneup/bcklabel: editoneup/bcklabel_base
+m_displayfont12
+Property textalign center
+m_scaleX
+YConstraint .5, .5, -1
+
+editoneup/bcklabel_base: editoneup/exit
+m_offsetLTRB
+
+editoneup/exit: editoneup/centergroup
+m_offsetLB
+m_hit_childlabel
+
+#-----------------------------------------------------------
+#To Timeline
+#-----------------------------------------------------------
+editoneup/timeline_icon: editoneup/timeline
+m_buttoniconleft
+m_hidden
+
+editoneup/tllabel: editoneup/tllabel_base
+m_displayfont12
+Property textalign center
+m_scaleX
+YConstraint .5, .5, -1
+m_hidden
+
+editoneup/tllabel_base: editoneup/timeline
+m_offsetLTRB
+m_hidden
+
+editoneup/timeline: editoneup/centergroup
+m_offsetLB
+m_hit_childlabel
+m_hidden
+m_disabled
+
+editoneup/sszoomsliderclip: editoneup/centergroup
+m_offsetLB
+
+#-----------------------------------------------------------
+#Center Group
+#-----------------------------------------------------------
+
+editoneup/auto_icon: editoneup/auto
+AbsXConstraint 1, 1, -4
+YConstraint 0.5, 0.5, 2
+
+editoneup/auto: editoneup/centergroup
+m_offsetB
+m_centerX
+
+editoneup/prev: editoneup/centergroup
+Property mousedown 1
+m_offsetLB
+
+editoneup/next: editoneup/centergroup
+Property mousedown 1
+m_offsetLB
+
+#-----------------------------------------------------------
+#Rotate
+#-----------------------------------------------------------
+
+editoneup/rotateleft: editoneup/stripback
+m_offsetRB
+
+editoneup/rotateright: editoneup/stripback
+m_offsetRB
+
+#-----------------------------------------------------------
+#Star
+#-----------------------------------------------------------
+
+editoneup/star: editoneup/stripback
+m_offsetRB
+
+#-----------------------------------------------------------
+#Transition Type
+#-----------------------------------------------------------
+editoneup/transtype: editoneup/stripback
+m_offsetLB
+Property itempadding 2 2 22 2
+
+#-----------------------------------------------------------
+#Caption
+#-----------------------------------------------------------
+
+editoneup/caption_icon: editoneup/captionbutton
+XConstraint 1, 1, -5
+YConstraint 0.5, 0.5, -1
+
+editoneup/caption_yesicon: editoneup/captionbutton
+XConstraint 1, 1, -5
+YConstraint 0.5, 0.5, -1
+m_hidden
+
+editoneup/captionbutton: editoneup/stripback
+m_offsetRB
+Property showtarget editoneup/caption_yesicon
+Property hidetarget editoneup/caption_icon
+
+#-----------------------------------------------------------
+#Display Time
+#-----------------------------------------------------------
+editoneup/plusone_icon: editoneup/plusone
+XConstraint 0.5, 0.5, -1
+YConstraint 0.5, 0.5, 0
+
+editoneup/plusone: editoneup/dtclip
+m_offsetRB
+Property setautorepeat 1
+
+editoneup/minusone_icon: editoneup/minusone
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+
+editoneup/minusone: editoneup/dtclip
+m_offsetRB
+Property setautorepeat 1
+
+editoneup/tps: editoneup/dtclip
+m_displayfont12
+Property textalign center
+
+editoneup/tpslabel: editoneup/dtclip
+m_systemfont11
+Property textalign center
+
+editoneup/dtclip: editoneup/centergroup
+m_offsetRB
+
+editoneup/centergroup: editoneup/stripback
+m_offsetB
+m_centerX
+
+
+#-----------------------------------------------------------
+#Overlay Base
+#-----------------------------------------------------------
+editoneup/stripback: root
+YConstraint 1, 1, -5
+m_centerX
+
+editoneup/caption: root
+YConstraint 1, 1, -100
+m_centerX

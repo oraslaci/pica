@@ -1,0 +1,150 @@
+#include outputlayout_text.tre
+
+#-----------------------------------------------------------
+# OUTPUT BUTTONS
+#-----------------------------------------------------------
+outputlayout/default_icon: root
+m_hidden
+
+outputlayout/earth_icon: root
+m_hidden
+
+#outputlayout/contact_icon: root
+#m_hidden
+
+#outputlayout/save_icon: root
+#m_hidden
+
+#outputlayout/poster_icon: root
+#m_hidden
+
+#outputlayout/happy_icon: root
+#m_hidden
+
+#outputlayout/picasa_icon: root
+#m_hidden
+
+outputlayout/movie_icon: root
+#m_hidden
+
+outputlayout/separator: outputlayout/overflowcontainer
+m_hidden
+
+#### EXPORT1 ####
+outputlayout/pbutton_icon: outputlayout/pbutton
+m_output_buttonicon
+outputlayout/pbutton-label: outputlayout/pbutton
+m_output_buttonfont
+outputlayout/pbutton: outputlayout/overflowcontainer
+m_offsetLT
+m_print_enable
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT2 ####
+outputlayout/ebutton_icon: outputlayout/ebutton
+m_output_buttonicon
+outputlayout/ebutton-label: outputlayout/ebutton
+m_output_buttonfont
+outputlayout/ebutton: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT3 ####
+outputlayout/folderbutton_icon: outputlayout/folderbutton
+m_output_buttonicon
+outputlayout/folderbutton-label: outputlayout/folderbutton
+m_output_buttonfont
+outputlayout/folderbutton: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT4 -- ORDER BUTTON #### 
+outputlayout/orderbutton_icon: outputlayout/orderbutton
+m_output_buttonicon
+outputlayout/orderbutton-label: outputlayout/orderbutton
+m_output_buttonfont
+outputlayout/orderbutton: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT5 ####
+outputlayout/sharewith_icon: outputlayout/sharewith
+m_output_buttonicon
+outputlayout/sharewith-label: outputlayout/sharewith
+m_output_buttonfont
+outputlayout/sharewith: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT6 ####
+outputlayout/blogger_icon: outputlayout/blogger
+m_output_buttonicon
+outputlayout/blogger-label: outputlayout/blogger
+m_output_buttonfont
+outputlayout/blogger: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT7 ####
+outputlayout/collage_icon: outputlayout/collage
+m_output_buttonicon
+outputlayout/collage-label: outputlayout/collage
+m_output_buttonfont
+outputlayout/collage: outputlayout/overflowcontainer
+m_offsetLT
+#m_collage_enable
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT8 ####
+outputlayout/movie_icon: outputlayout/makemovie
+m_output_buttonicon
+outputlayout/makemovie-label: outputlayout/makemovie
+m_output_buttonfont
+outputlayout/makemovie: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+#### EXPORT9 / MOREBUTTON ####
+outputlayout/export7_icon: outputlayout/morebutton
+m_output_buttonicon
+outputlayout/morebutton-label: outputlayout/morebutton
+m_output_buttonfont
+outputlayout/morebutton: outputlayout/overflowcontainer
+m_offsetLT
+m_buttontypecolor4
+m_hidden
+m_hit_childlabel
+#SharedHandler outputlayout/tip hottip thumbui/output_label
+
+outputlayout/overflowcontainer: root
+m_offsetT
+m_scaleX
+#XConstraint 0, 0, 0
+#XConstraint 1, 0, 250
+
+Property cellwidth  50
+Property cellheight 52

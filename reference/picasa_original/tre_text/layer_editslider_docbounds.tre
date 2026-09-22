@@ -1,0 +1,394 @@
+#-----------------------------------------------------------
+# EDITPANEL
+#-----------------------------------------------------------
+
+Label editpanel/sbutton
+Play
+
+Tooltip editpanel/sbutton
+Watch a slideshow of these photos
+
+Tooltip editpanel/edithelpbutton
+Help
+
+Tooltip editpanel/weblink
+Go to the website associated with this Photo
+
+#Label editpanel/highres
+#Get Highres
+
+#Tooltip editpanel/highres
+#Get the High Resolution version of this image
+
+Label editpanel/editcollage
+Edit Collage
+
+Tooltip editpanel/editcollage
+Edit the collage from which this image was created
+
+Tooltip editpanel/fit
+Fit Photo inside viewing area
+
+Tooltip editpanel/1to1
+Display Photo at actual size
+
+#Tooltip editpanel/histogram
+#Show/Hide Histogram & Camera Information
+
+Text nerdview/nvhead
+Histogram & Camera Information
+
+Tooltip editpanel/captionbutton
+Show/Hide Caption
+
+Tooltip editpanel/toggle_left_drawer
+Show/Hide Edit Controls
+
+Tooltip editpanel/captiontrash
+Delete this caption
+
+Text editpanel/refining_label
+Refining...
+
+Label editpanel/tool_ok
+APPLY
+
+Label editpanel/tool_cancel
+CANCEL
+
+Label editpanel/editslideshow
+Edit Movie
+
+Tooltip editpanel/editslideshow
+Edit this Movie presentation
+
+Label editpanel/albumview
+Back to Library
+
+Tooltip editpanel/albumview
+Return to organized thumbnails
+
+Tooltip editpanel/quickupload
+Upload to your Web Albums Drop Box
+
+Tooltip editpanel/uploadchanges
+Update online copy with this version
+
+Label editpanel/selection_label
+Selected
+
+Label editpanel/selection_label_zoom
+Selected
+
+Tooltip editpanel/swap_2up_focus
+Switch which image has focus
+
+Tooltip editpanel/swap_2up_layout
+Switch between horizontal and vertical layout
+
+Tooltip editpanel/aa_2up_toggle
+View the same image twice
+
+Tooltip editpanel/ab_2up_toggle
+View two different images
+
+Tooltip editpanel/only_1up_toggle
+View only one image
+
+# tab headers
+#-----------------------------------------------------------
+Tooltip editpanel/tab1
+Commonly needed fixes
+
+Tooltip editpanel/tab2
+Finely-tuned lighting and color fixes
+
+Tooltip editpanel/tab3
+Fun and useful image processing
+
+Tooltip editpanel/tab4
+More fun and useful image processing
+
+Tooltip editpanel/tab5
+Even more fun and useful image processing
+
+# tab 1
+#----------------------------------------------------------->
+
+Label editpanel/crop
+Crop
+
+Tooltip editpanel/crop
+Crop this Photo to a different format
+
+Label editpanel/redeye
+Redeye
+
+Tooltip editpanel/redeye
+Repair Red-Eye flaws in this Photo
+
+Label editpanel/autolighting
+Auto Contrast
+
+Tooltip editpanel/autolighting
+Fix exposure without affecting color
+
+Label editpanel/autocolor
+Auto Color
+
+Tooltip editpanel/autocolor
+Remove color casts automatically
+
+Label editpanel/retouch
+Retouch
+
+Tooltip editpanel/retouch
+Repair blemishes, dust and scratches
+
+Label editpanel/edittext
+Text
+
+Label editpanel/picnik
+Edit in Creative Kit
+
+Tooltip editpanel/picnik
+Edit a photo online using Creative Kit
+
+Label editpanel/showtextlabel
+Show Text
+
+Tooltip editpanel/edittext
+Add/Edit Text on a photo
+
+Tooltip editpanel/showtextcheckbox
+Toggle to show or hide text on a photo
+
+Tooltip editpanel/filllight_icon
+Fill Light: Adjust the ambient light in the Photo
+
+#Label editpanel/autobacklight
+#Fill Light
+
+#Tooltip editpanel/autobacklight
+#Increases the ambient lighting by 25%
+
+Label editpanel/horizonadjust
+Straighten
+
+Tooltip editpanel/horizonadjust
+Fix a crooked Photo
+
+Label editpanel/enhance
+I'm Feeling Lucky
+
+Tooltip editpanel/enhance
+One-click fix for lighting and color
+
+Label editpanel/ok
+Apply
+
+Tooltip editpanel/ok
+Apply Changes
+
+Label editpanel/cancel
+Cancel
+
+Tooltip editpanel/cancel
+Cancel Changes
+
+Label editpanel/filter_undo
+Undo
+
+Tooltip editpanel/filter_undo
+Remove the latest fix or edit
+
+Label editpanel/filter_redo
+Redo
+
+Tooltip editpanel/filter_redo
+Reapply a removed fix or edit
+
+#crop>
+#-----------------------------------------------------------
+Label editpanel/crop_label
+Crop Photo
+
+Label editpanel/croptext
+Select a dimension below and then click and drag on the image to select the portion of the image you wish to crop.
+
+Label editpanel/croprotatecrop
+Rotate
+
+Tooltip editpanel/croprotatecrop
+Switches between portrait and landscape orientation
+
+Label editpanel/croppreview
+Preview
+
+Tooltip editpanel/croppreview
+Previews selected crop
+
+Label editpanel/cropdiscard
+Reset
+
+Tooltip editpanel/cropdiscard
+Discards any applied cropping
+
+Label editpanel/cropapply
+Apply
+
+Tooltip editpanel/cropapply
+Apply cropping edits
+
+Label editpanel/cropcancel
+Cancel
+
+Tooltip editpanel/cropcancel
+Exits the crop tool
+
+Tooltip editpanel/crop_delete_custom
+Deletes the current aspect ratio
+
+#Tooltip editpanel/croprevert
+#Removes any applied cropping
+
+
+#redeye>
+#-----------------------------------------------------------
+Label editpanel/redeye_label
+Redeye Repair
+
+Label editpanel/redeyetext
+Click, hold, and drag the mouse around each eye separately to select it. A selection box appears over the area.  Release the mouse to complete your selection. The Photo is displayed with the red-eye removed.
+
+Label editpanel/redeyeauto
+Auto
+
+Tooltip editpanel/redeyeauto
+Reapply auto redeye corrections
+
+Label editpanel/redeyepreview
+Preview
+
+Tooltip editpanel/redeyepreview
+Preview changes without square outlines
+
+Label editpanel/redeyecancel
+Cancel
+
+Tooltip editpanel/redeyecancel
+Exit Red-Eye repair without applying effect
+
+Label editpanel/redeyeapply
+Apply
+
+Tooltip editpanel/redeyeapply
+Apply effect and exit Red-Eye repair
+
+Label editpanel/redeyediscard
+Reset
+
+Tooltip editpanel/redeyediscard
+Undo Red-Eye changes
+
+#retoucher
+Label editpanel/retouch_label
+Retouch blemishes
+
+Label editpanel/retouchtext
+Click to select the area to fix.  Then, move the mouse to see a preview of the replacement area.  Click on the image again to finalize.  Lather, rinse, repeat.  Note:  you can use ctrl-drag to pan.
+
+Label editpanel/retouch_brush_label
+Brush Size
+
+Label editpanel/retouchreset
+Reset
+
+Label editpanel/retouchundo
+Undo Patch
+
+Label editpanel/retouchredo
+Redo Patch
+
+Label editpanel/retouchapply
+Apply
+
+Label editpanel/retouchcancel
+Cancel
+
+Tooltip editpanel/retouchreset
+Remove all retouch patches
+
+Tooltip editpanel/retouchundo
+Remove last retouch patch
+
+Tooltip editpanel/retouchredo
+Reapply a removed retouch patch
+
+Tooltip editpanel/retouchapply
+Apply fixes and exit Retouch tool
+
+Tooltip editpanel/retouchcancel
+Exit Retouch tool without applying edits
+
+# tab 2
+#----------------------------------------------------------->
+
+Tooltip editpanel/magic_lighting
+One-click fix for lighting
+
+Tooltip editpanel/magic_color
+One-click fix for color
+
+Tooltip editpanel/droppertoggle
+Allows you to pick a neutral gray or white part of the Photo to remove color cast
+
+Label editpanel/greybalancelabel
+Neutral Color Picker
+
+# fx filters >
+#-----------------------------------------------------------
+Label editpanel/filllightlabel
+Fill Light
+
+Label editpanel/picnik_fx_label
+Effects by
+
+Tooltip editpanel/picnik_fx
+Try more effects at Creative Kit
+
+# edit modes
+#-----------------------------------------------------------
+#Tooltip edit/revertedits
+#Removes all edits from original Photo
+
+# "project" support
+#-----------------------------------------------------------
+Label editpanel/in_progress_label
+In Progress...
+
+Label editpanel/render_now
+Create Now
+
+Label editpanel/picnikcancel
+Cancel
+
+Text editpanel/picnikprogressdone
+Click 'Save to Picasa' when done editing.
+
+Text1 editpanel/picnikprogress
+Transferring photo to Creative Kit...
+
+Text2 editpanel/picnikprogress
+Connecting to Creative Kit...
+
+Text3 editpanel/picnikprogress
+Please wait, transferring photo from Creative Kit...
+
+# Color Wheel
+#-----------------------------------------------------------
+Label editpanel/colorwheel_label0
+Pick Color
+
+Label editpanel/colorwheel_label1
+Pick Color

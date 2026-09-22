@@ -1,0 +1,11 @@
+#-----------------------------------------------------------
+# EDITONEUP
+#-----------------------------------------------------------
+Label editoneup/tllabel
+Timeline
+
+Label editoneup/bcklabel
+Exit
+
+Text editoneup/tpslabel
+Display Time

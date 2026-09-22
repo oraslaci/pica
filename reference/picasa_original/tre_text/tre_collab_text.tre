@@ -1,0 +1,76 @@
+#includeonce macros.tre
+#include collab_text
+
+collab/uploadsize_label: root
+m_displayfont14
+
+collab/learnmore: collab/privacy_label
+m_displayfont14
+m_offsetT
+XConstraint 0, 1, 10
+
+collab/privacy_label: root
+m_displayfont14
+m_offsetLT
+
+collab/uploadinfo: root
+Property textalign center
+
+collab/uploadinfo_link-label: root
+m_offsetT
+m_centerX
+collab/uploadinfo_link: root
+m_hidden
+
+#=============================
+# Share with friends...
+#=============================
+collab/contact_edit: collab/contact_edit_base
+m_offsetLT
+
+collab/contact_edit_base: collab/collab_window_group
+m_offsetLT
+
+collab/contact_edit_active: collab/friend_album_group
+m_offsetLT
+
+collab/contact_list: collab/collab_window_group
+m_offsetLT
+
+collab/contact_album_list: collab/collab_window_group
+m_offsetLT
+
+collab/contact_album_list_label: collab/friend_album_group
+m_offsetLT
+
+collab/choose_contact_label: collab/friend_album_group
+m_offsetLT
+
+collab/contact_lists_active: collab/friend_album_group
+m_offsetLT
+
+collab/collab_window_group: collab/friend_album_group
+m_offsetLT
+
+collab/friend_album_group: root
+m_offsetLT
+
+#=============================
+#=============================
+collab/uploadsize_menu: root
+m_offsetLT
+Property itempadding 1 2 21 1
+
+collab/visibility_icon: collab/visibility_readonly_group
+m_offsetLT
+collab/visibility_label: collab/visibility_readonly_group
+m_offsetLT
+collab/visibility_readonly_group: root
+m_hidden
+m_offsetLT
+
+collab/ok: root
+m_offsetLT
+
+collab/cancel: root
+m_offsetLT

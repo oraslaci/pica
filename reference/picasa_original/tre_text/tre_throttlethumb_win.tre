@@ -1,0 +1,9 @@
+throttle/throttleposition: throttle/thumbclip
+
+throttle/throttlethumb: throttle/thumbclip
+XConstraint 1, 1, -2
+YConstraint 0.5, 0.5, 0
+Property drag 1
+
+throttle/thumbclip: thumbui/throttlegroup
+m_offsetRTB

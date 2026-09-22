@@ -1,0 +1,126 @@
+searchcontainer/searchbase: thumbui/searchcontainer
+m_offsetLTR
+
+searchcontainer/searchautocomplete: searchcontainer/search
+#m_scaleX'
+XConstraint 0, 0, -25
+XConstraint 1, 1, 28
+YConstraint 0, 1, 0
+YConstraint 1, 1, 100
+m_hidden
+
+searchcontainer/search: thumbui/searchcontainer
+m_offsetLTR
+
+searchcontainer/searchclr: thumbui/searchcontainer
+m_offsetRT
+m_hidden
+
+searchcontainer/searchbutton: thumbui/searchcontainer
+m_offsetRT
+Property hiddentimer 1
+Property mousedown 1
+Property showtarget thumbui/searchgroupcontainer
+#Property showtarget thumbui/searchcolor
+m_buttontypecolor
+#Handler varbutton searchtop 114
+Handler varbutton searchtop 62
+m_hidden
+
+# search buttons
+searchcontainer/filter_label: thumbui/searchcontainer
+m_displayfont12
+m_offsetL
+YConstraint 0, 0, -4
+
+searchcontainer/starsearch_icon_0: searchcontainer/starsearch
+searchcontainer/starsearch_icon_1: searchcontainer/starsearch
+m_hidden
+searchcontainer/starsearch: searchcontainer/filterbase
+m_offsetLT
+Property mousedown 1
+SharedHandler searchcontainer/tip hottip searchcontainer/filter_label
+Property showtarget searchcontainer/starsearch_icon_1
+Property hidetarget searchcontainer/starsearch_icon_0
+
+searchcontainer/facesearch_icon_0: searchcontainer/facesearch
+searchcontainer/facesearch_icon_1: searchcontainer/facesearch
+m_hidden
+searchcontainer/facesearch: searchcontainer/filterbase
+m_offsetLT
+Property mousedown 1
+SharedHandler searchcontainer/tip hottip searchcontainer/filter_label
+Property showtarget searchcontainer/facesearch_icon_1
+Property hidetarget searchcontainer/facesearch_icon_0
+
+searchcontainer/moviesearch_icon_0: searchcontainer/moviesearch
+searchcontainer/moviesearch_icon_1: searchcontainer/moviesearch
+m_hidden
+searchcontainer/moviesearch: searchcontainer/filterbase
+m_offsetLT
+Property mousedown 1
+SharedHandler searchcontainer/tip hottip searchcontainer/filter_label
+Property showtarget searchcontainer/moviesearch_icon_1
+Property hidetarget searchcontainer/moviesearch_icon_0
+
+searchcontainer/webview_icon_0: searchcontainer/webview
+searchcontainer/webview_icon_1: searchcontainer/webview
+m_hidden
+searchcontainer/webview: searchcontainer/filterbase
+m_offsetLT
+Property mousedown 1
+SharedHandler searchcontainer/tip hottip searchcontainer/filter_label
+Property showtarget searchcontainer/webview_icon_1
+Property hidetarget searchcontainer/webview_icon_0
+
+searchcontainer/geotagsearch_icon_0: searchcontainer/geotagsearch
+searchcontainer/geotagsearch_icon_1: searchcontainer/geotagsearch
+m_hidden
+searchcontainer/geotagsearch: searchcontainer/filterbase
+m_offsetLT
+Property mousedown 1
+SharedHandler searchcontainer/tip hottip searchcontainer/filter_label
+Property showtarget searchcontainer/geotagsearch_icon_1
+Property hidetarget searchcontainer/geotagsearch_icon_0
+
+searchcontainer/filterbase: thumbui/searchcontainer
+m_offsetLT
+
+searchcontainer/timecontainer_label: thumbui/searchcontainer
+m_offsetLT
+SharedHandler searchcontainer/tip hottip searchcontainer/filter_label
+searchcontainer/timecontainer: thumbui/searchcontainer
+m_offsetLT
+
+searchcontainer/search_icon: thumbui/searchcontainer
+m_offsetLT
+
+#-----------------------------------------------------------
+# Move below to external resource for i18n
+#-----------------------------------------------------------
+Tooltip searchcontainer/timecontainer_label
+Filter by date range
+
+Tooltip searchcontainer/searchclr
+Clear your search
+
+#-----------------------------------------------------------
+# Search Filters
+#-----------------------------------------------------------
+Label searchcontainer/filter_label
+Filters
+
+Tooltip searchcontainer/starsearch
+Show starred photos only 
+
+Tooltip searchcontainer/moviesearch
+Show movies only
+
+Tooltip searchcontainer/webview
+Show uploads to web albums only
+
+Tooltip searchcontainer/facesearch
+Show only photos with faces
+
+Tooltip searchcontainer/geotagsearch
+Show only photos with geotag

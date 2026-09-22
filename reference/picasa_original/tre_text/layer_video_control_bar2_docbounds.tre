@@ -1,0 +1,151 @@
+
+#--------------------------------------------------------------------------
+# Trim Slider
+#--------------------------------------------------------------------------
+
+video_control_bar/lefttrim: video_control_bar/trimruler
+XConstraint 0, 0, 0
+m_scaleY
+
+video_control_bar/righttrim: video_control_bar/trimruler
+XConstraint 1, 1, 0
+m_scaleY
+
+video_control_bar/trimruler: video_control_bar/trimslider
+m_offsetT
+m_scaleX
+
+video_control_bar/startthumb: video_control_bar/trimslider
+m_offsetLB
+#XConstraint 0, 0, -4
+
+video_control_bar/endthumb: video_control_bar/trimslider
+m_offsetRB
+
+#--------------------------------------------------------------------------
+# Time Slider
+#--------------------------------------------------------------------------
+video_control_bar/time: video_control_bar/moviescrubslider_container
+m_offsetLTR
+m_systemfont11
+Property textalign center
+
+video_control_bar/sliderbaseC: video_control_bar/moviescrubslider_container
+m_offsetT
+XConstraint 0, 0, 10
+XConstraint 1, 1, -10
+
+video_control_bar/sliderbaseL: video_control_bar/moviescrubslider_container
+m_offsetT
+XConstraint 0, 0, 9
+
+video_control_bar/sliderbaseR: video_control_bar/moviescrubslider_container
+m_offsetT
+XConstraint 1, 1, -9
+
+video_control_bar/trimslider: video_control_bar/moviescrubslider_container
+m_offsetT
+XConstraint 0, 0, 10
+XConstraint 1, 1, -10
+
+video_control_bar/thumb: video_control_bar/scaleslider
+m_offsetLT
+
+video_control_bar/scaleslider: video_control_bar/moviescrubslider_container
+m_offsetT
+XConstraint 0, 0, 10
+XConstraint 1, 1, -10
+Property slider 0
+
+#video_control_bar/moviescrubslider_container: root
+#m_offsetT
+#XConstraint 0, 0, 69
+#XConstraint 1, 1, -179
+
+video_control_bar/moviescrubslider_container: video_control_bar/controlbar
+m_offsetLTR
+
+
+#--------------------------------------------------------------------------
+# Volume Slider
+#--------------------------------------------------------------------------
+video_control_bar/volumeslider_base: video_control_bar/controlbar
+m_offsetRT
+
+video_control_bar/volumethumb: video_control_bar/volumeslider
+m_offsetLT
+
+video_control_bar/volumeslider: video_control_bar/controlbar
+m_offsetRT
+Property slider 0
+
+#--------------------------------------------------------------------------
+# Base Elements
+#--------------------------------------------------------------------------
+video_control_bar/moviecontrolsclip: video_control_bar/controlbar
+m_offsetLT
+
+video_control_bar/fullscreen_icon: video_control_bar/moviemode1
+m_centerXY
+
+video_control_bar/moviemode1: video_control_bar/controlbar
+m_offsetRT
+
+#video_control_bar/setin-label: video_control_bar/setin
+#YConstraint .5, .5, 0
+#Property fontname Praxis Semi Bold/Heavy
+#Property fonttrack -1
+#Property fontsize 11
+#Property fontweight 400
+#Property fontleading 10
+#Property textalign center
+#Property textwrap 1
+#XConstraint 0, 0, 7
+
+video_control_bar/setin_icon: video_control_bar/setin
+XConstraint 0.5, 0.5, -2
+YConstraint 0.5, 0.5, 0
+
+video_control_bar/setin: video_control_bar/controlbar
+m_offsetRT
+
+#video_control_bar/setout-label: video_control_bar/setout
+#YConstraint .5, .5, 0
+#Property fontname Praxis Semi Bold/Heavy
+#Property fonttrack -1
+#Property fontsize 11
+#Property fontweight 400
+#Property fontleading 10
+#Property textalign center
+#Property textwrap 1
+#XConstraint 0, 0, 7
+
+video_control_bar/setout_icon: video_control_bar/setout
+XConstraint 0.5, 0.5, 2
+YConstraint 0.5, 0.5, 0
+
+video_control_bar/setout: video_control_bar/controlbar
+m_offsetRT
+
+#video_control_bar/1to1: video_control_bar/controlbar
+#m_offsetRT
+
+video_control_bar/controlbar: root
+m_scaleX
+m_offsetT
+
+#video_control_bar/trimcontrolbar: root
+#m_scaleX
+#m_offsetT
+#m_hidden
+
+Tooltip video_control_bar/setin
+Create a new starting point
+
+Tooltip video_control_bar/setout
+Create a new ending point
+
+Tooltip video_control_bar/moviemode1
+Play full screen
+
+#include video_control_bartext.tre

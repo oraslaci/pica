@@ -1,0 +1,60 @@
+#-----------------------------------------------------------
+# MAIN-UI Photo TRAY ACTIONS
+#-----------------------------------------------------------
+
+Label outputlayout/pbutton
+Print
+
+Tooltip outputlayout/pbutton
+Print photos in the Photo Tray
+
+Label outputlayout/ebutton
+Email
+
+Tooltip outputlayout/ebutton
+Send photos in the Photo Tray by e-mail
+
+Label outputlayout/collage
+Collage
+
+Tooltip outputlayout/collage
+Create a Photo Collage with your selection
+
+Label outputlayout/makemovie
+Movie
+
+Tooltip outputlayout/makemovie
+Create a Movie presentation with your selection
+
+Label outputlayout/sharewith
+Hello
+
+Tooltip outputlayout/sharewith
+Send photos in the Photo Tray to Hello
+
+Label outputlayout/blogger
+Blogger
+
+Tooltip outputlayout/blogger
+Upload photos to Blogger
+
+Tooltip outputlayout/blogger
+Send photos in the Photo Tray to BloggerBot in Hello
+
+Label outputlayout/orderbutton
+Shop
+
+Tooltip outputlayout/orderbutton
+Buy prints and products from your favorite online provider 
+
+Label outputlayout/folderbutton
+Export
+
+Tooltip outputlayout/folderbutton
+Copy photos in the Photo Tray to a folder on your hard disk
+
+Label outputlayout/morebutton
+More...
+
+Tooltip outputlayout/morebutton
+Click to see more options

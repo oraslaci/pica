@@ -1,0 +1,138 @@
+#includeonce macros.tre
+#include foldermgr_text.tre
+
+# FOLDER LIST (LEFT SIDE)
+foldermgr/folder_list_label: foldermgr/left_side
+m_offsetLT
+m_displayfont14
+
+foldermgr/foldertree: foldermgr/left_side
+XConstraint 0, 0, 10
+XConstraint 1, 1, 0
+YConstraint 0, 0, 20
+YConstraint 1, 1, -60
+
+foldermgr/left_side: foldermgr/base
+XConstraint 0, 0, 4
+XConstraint 1, .5, 0
+YConstraint 0, 0, 4
+YConstraint 1, 1, 0
+
+# RIGHT SIDE
+
+foldermgr/instructions_text: foldermgr/right_side
+m_offsetLT
+m_displayfont14
+
+foldermgr/status_label: foldermgr/status_decrect
+m_offsetLT
+m_displayfont14
+
+foldermgr/scan_once_label: foldermgr/scan_once
+m_offsetLT
+m_displayfont12
+
+foldermgr/scan_once: foldermgr/status_group
+m_offsetLT
+m_hit_childlabel
+Property setpressed 1
+
+foldermgr/icon_once: foldermgr/status_group
+m_offsetLT
+
+foldermgr/icon_exclude: foldermgr/status_group
+m_offsetLT
+
+foldermgr/icon_always: foldermgr/status_group
+m_offsetLT
+
+foldermgr/remove_label: foldermgr/remove
+m_offsetLT
+m_displayfont12
+
+foldermgr/remove: foldermgr/status_group
+m_offsetLT
+m_hit_childlabel
+
+foldermgr/watch_label: foldermgr/watch
+m_offsetLT
+m_displayfont12
+
+foldermgr/watch: foldermgr/status_group
+m_offsetLT
+m_hit_childlabel
+
+foldermgr/nofr_off: foldermgr/frexclude
+m_offsetL
+m_centerY
+m_hidden
+
+foldermgr/nofr_on: foldermgr/frexclude
+m_offsetL
+m_centerY
+
+foldermgr/line: foldermgr/status_decrect
+m_offsetT
+m_scaleX
+
+foldermgr/frexclude_label: foldermgr/frexclude
+m_offsetLT
+m_displayfont12
+
+foldermgr/frexclude: foldermgr/status_decrect
+m_offsetLT
+m_hit_childlabel
+Property hidetarget foldermgr/nofr_on
+Property showtarget foldermgr/nofr_off
+
+foldermgr/status_group: foldermgr/status_decrect
+m_offsetLT
+
+foldermgr/status_decrect: foldermgr/right_side
+m_offsetLT
+
+foldermgr/watched_label: foldermgr/right_side
+m_offsetLT
+m_displayfont14
+
+foldermgr/watched_folders: foldermgr/right_side
+m_offsetLT
+XConstraint 1, 1, -10
+YConstraint 1, 1, -60
+
+foldermgr/right_side: foldermgr/base
+XConstraint 0, 0.5, 0
+XConstraint 1, 1, -4
+YConstraint 0, 0, 4
+YConstraint 1, 1, 0
+
+# RESIZE CORNER
+
+foldermgr/size: foldermgr/base
+m_offsetRB
+Property winsize 1
+
+foldermgr/base: root
+m_offsetB
+m_scaleX
+
+# BUTTONS
+
+foldermgr/ok-label: foldermgr/ok
+m_buttonfontC
+foldermgr/ok: root
+m_buttontypecolor
+m_offsetRB
+
+foldermgr/cancel-label: foldermgr/cancel
+m_buttonfontC
+foldermgr/cancel: root
+m_buttontypecolor
+m_offsetRB
+
+foldermgr/help-label: foldermgr/help
+m_buttonfontC
+foldermgr/help: root
+m_buttontypecolor
+m_offsetRB
+

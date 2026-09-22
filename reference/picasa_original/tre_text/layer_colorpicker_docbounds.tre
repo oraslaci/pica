@@ -1,0 +1,177 @@
+
+#Label collagepanel/addclips
+#Add
+
+Tooltip collagepanel/addclips
+Add selected clips to the collage
+
+#Label collagepanel/deleteclips
+#Remove
+
+Tooltip collagepanel/deleteclips
+Remove selected clips from the tray 
+
+Label collagepanel/getmoreclips
+Get more...
+
+Tooltip collagepanel/getmoreclips
+Get more clips from the Library
+
+Label collagepanel/tab1
+Settings
+
+Label collagepanel/tab2
+Clips
+
+Label collagepanel/shadow_checkbox_label
+Draw Shadows
+
+Label collagepanel/caption_checkbox_label
+Show Captions
+
+Tooltip collagepanel/caption_checkbox
+Show captions as text on pictures with an "Instant Camera" border
+
+Label collagepanel/set_frame_center-label
+Set as Frame Center
+
+Label collagepanel/spacing_label
+Grid Spacing
+
+Label collagepanel/min_spacing_label
+None
+
+Label collagepanel/max_spacing_label
+Max.
+
+Label collagepanel/bkg_settings_title
+Background Options
+
+Label collagepanel/borders_label
+Picture Borders
+
+#Label collagepanel/theme_title
+#Collage Theme
+
+Label collagepanel/format_title
+Page Format
+
+#Label collagepanel/orientation_label
+#Page Orientation
+
+#Label collagepanel/rand_label
+#Collage Randomizers
+
+Label collagepanel/rand_order-label
+Shuffle Pictures
+
+Label collagepanel/rand_placement-label
+Scramble Collage
+
+Label collagepanel/view_and_edit-label
+View and Edit
+
+Label collagepanel/cancelbutton-label
+Close
+
+Label collagepanel/resetbutton-label
+Reset
+
+Label collagepanel/makedesktop-label
+Desktop Background
+
+Label collagepanel/sharebutton-label
+Create Collage
+
+Label collagepanel/color_bg_label
+Solid Color
+
+Label collagepanel/bitmap_bg_label
+Use Image
+
+#Label collagepanel/select_label
+#Select:
+
+Label collagepanel/select_all
+Select All
+
+Label collagepanel/select_none
+Select None
+
+Label collagepanel/remove_node
+Remove
+
+Label collagepanel/set_background
+Set as Background
+
+Label collagepanel/bkg_from_selection
+Use selected
+
+#Label collagepanel/filmstrip_title
+#Unused Pictures
+
+Tooltip collagepanel/portrait
+Portrait: Orient your design vertically
+
+Tooltip collagepanel/landscape
+Landscape: Orient your design horizontally
+
+Tooltip collagepanel/format_menu
+Select the relative width and height of your design
+
+Tooltip collagepanel/delete_custom_aspect
+Delete the current aspect ratio
+
+Tooltip collagepanel/cancelbutton
+Close the Collage tab
+
+Tooltip collagepanel/makedesktop
+Save as a JPG image in the Collages album, then set it as the desktop background
+
+Tooltip collagepanel/resetbutton
+Undo all changes
+
+Tooltip collagepanel/sharebutton
+Save as a JPG image in the Collages album (within the Projects collection).
+
+Tooltip collagepanel/rand_order
+Randomize the order of the pictures 
+
+Tooltip collagepanel/rand_placement
+Mix up the collage layout
+
+Tooltip collagepanel/select_all
+Select all pictures (Ctrl-A)
+
+Tooltip collagepanel/select_none
+Deselect all pictures (Ctrl-D)
+
+Tooltip collagepanel/remove_node
+Remove selection from collage (Del)
+
+Tooltip collagepanel/set_background
+Use selected picture as the background
+
+Tooltip collagepanel/move_top
+Move picture to the top of the pile
+
+Tooltip collagepanel/move_up
+Move picture up in the pile
+
+Tooltip collagepanel/move_down
+Move picture down in the pile
+
+Tooltip collagepanel/move_bottom
+Move picture to the bottom of the pile
+
+Tooltip collagepanel/snap_12
+Align rotation to straight up
+
+Tooltip collagepanel/snap_3
+Align rotation to 90 CW
+
+Tooltip collagepanel/snap_6
+Align rotation to 180 CW
+
+Tooltip collagepanel/snap_9
+Align rotation to 270 CW

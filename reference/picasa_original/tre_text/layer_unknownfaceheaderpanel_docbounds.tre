@@ -1,0 +1,175 @@
+Text modalprogress/escmessage
+Press ESC key on keyboard to abort
+
+#-----------------------------------------------------------
+# PRINTPANEL
+#-----------------------------------------------------------
+
+# print layout >
+#-----------------------------------------------------------
+
+Label printpanel/printlayoutlabel
+Print Layout
+
+Label printpanel/walletbutton
+Wallet
+
+Tooltip printpanel/walletbutton
+Print wallet-sized photos
+
+Label printpanel/3x5button
+3.5 x 5
+
+Tooltip printpanel/3x5button
+Print photos as a standard 3.5x5 size
+
+Label printpanel/4x6button
+4 x 6
+
+Tooltip printpanel/4x6button
+Print photos as a standard 4x6 size
+
+Label printpanel/5x7button
+5 x 7
+
+Tooltip printpanel/5x7button
+Print photos as a standard 5x7 size
+
+Label printpanel/8x10button
+8 x 10
+
+Tooltip printpanel/8x10button
+Print photos as a standard 8x10 size
+
+Label printpanel/fullbutton
+Full Page
+
+Tooltip printpanel/fullbutton
+Print photos the same size as paper
+
+Label printpanel/croptogglelabel
+Crop to Fit
+
+Tooltip printpanel/croptoggle
+Crop photos to match the selected print dimensions
+
+Label printpanel/fittogglelabel
+Shrink to Fit
+
+Tooltip printpanel/fittoggle
+Preserve the original dimensions of the photos
+
+Label printpanel/captionoptionslabel
+Border and Text Options
+
+Label printpanel/printerlabel
+Printer
+
+Label printpanel/setuplabel
+Printer Setup
+
+Label printpanel/copieslabel
+Copies per Photo
+
+#Tooltip printpanel/standardbutton
+#Good quality, compatible with most printers' resolutions, especially HP.
+
+#Tooltip printpanel/optimizebutton
+#Highest quality, uses your printer's resolution. Test on inexpensive paper first.
+
+# preview>
+#-----------------------------------------------------------
+
+Label printpanel/previewlabel
+Preview
+
+Tooltip printpanel/prevbutton
+View the previous preview page
+
+Tooltip printpanel/nextbutton
+View the next preview page
+
+
+# printer settings >
+#-----------------------------------------------------------
+
+Label printpanel/printsetuplabel
+Printer Settings
+
+Tooltip printpanel/captionoptionsbutton
+Configure borders and text for Photos to be printed
+
+Tooltip printpanel/selectprinterbutton
+Provides a list of available printers
+
+Tooltip printpanel/psetupbutton
+Open printer setup controls for the selected printer
+
+Tooltip printpanel/addprintsbutton
+Add another copy of each Photo to be printed
+
+Tooltip printpanel/subprintsbutton
+Subtract a copy of each Photo to be printed
+
+# bottom controls >
+#-----------------------------------------------------------
+
+Label printpanel/phelpbutton
+Help
+
+Tooltip printpanel/phelpbutton
+Open the help center for Print troubleshooting
+
+Label printpanel/froogle
+Search Froogle for Supplies
+
+Tooltip printpanel/froogle
+Search for items/accessories for your printer on Froogle
+
+Label printpanel/reviewnowbutton
+Review
+
+Tooltip printpanel/reviewnowbutton
+Make sure your photos are ready to print
+
+Label printpanel/reviewnowbutton2
+Review
+
+Tooltip printpanel/reviewnowbutton2
+Make sure your photos are ready to print
+
+Label printpanel/pnowbutton
+Print
+
+Tooltip printpanel/pnowbutton
+Print photos now with the current settings
+
+Label printpanel/pnowbutton2
+Print
+
+Tooltip printpanel/pnowbutton2
+Print photos now with the current settings
+
+Label printpanel/pcancelbutton
+Cancel
+
+Tooltip printpanel/pcancelbutton
+Cancel the print process and return to thumbnail view
+
+
+
+
+#-----------------------------------------------------------
+# Button Manager
+#-----------------------------------------------------------
+#Tooltip buttonmgr/add
+#add
+
+#Tooltip buttonmgr/remove
+#remove
+
+#Tooltip buttonmgr/moveup
+#moveup
+
+#Tooltip buttonmgr/movedown
+#movedown

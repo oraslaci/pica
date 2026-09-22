@@ -1,0 +1,9 @@
+
+editpanelactivity/spinner: editpanelactivity/base
+m_centerXY
+m_hidden
+
+editpanelactivity/spinnermask: editpanelactivity/base
+m_centerXY
+
+editpanelactivity/base: root

@@ -1,0 +1,217 @@
+#includeonce macros.tre
+
+#---Album Info--------------------
+#faceheaderpanel/album_description: faceheaderpanel/headerbase
+#m_offsetLTR
+#Property fontname Georgia
+#Property fontsize 14
+#m_hidden
+
+faceheaderpanel/album_title: faceheaderpanel/album_title_clip
+m_offsetLT
+Property fontname Georgia
+Property fontsize 20
+
+#faceheaderpanel/title_fade0: faceheaderpanel/album_title_clip
+#m_offsetT
+#XConstraint 1, 1, 0
+
+#faceheaderpanel/title_fade1: faceheaderpanel/album_title_clip
+#m_offsetT
+#XConstraint 1, 1, 0
+#m_hidden
+
+faceheaderpanel/album_title_clip: faceheaderpanel/headerbase
+m_offsetT
+XConstraint 0, 0, 80
+XConstraint 1, 1, -50
+
+#--- Play Slideshow
+faceheaderpanel/play_icon: faceheaderpanel/play
+m_centerXY
+faceheaderpanel/play: faceheaderpanel/headerbase
+m_offsetLT
+#Property mousedown 1
+SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+faceheaderpanel/dividers: faceheaderpanel/headerbase
+m_offsetLT
+
+#---Create Cluster----------------------
+faceheaderpanel/create_label: faceheaderpanel/headerbase
+m_offsetLT
+m_buttonfont
+#Property textalign right
+#XConstraint 1, 0, 158
+#m_buttonfont
+
+faceheaderpanel/sync_label: faceheaderpanel/headerbase
+m_offsetRT
+m_displayfont12
+Property textalign right
+m_hidden
+
+faceheaderpanel/websync0: faceheaderpanel/headerbase
+m_offsetRT
+Property normalcursor 1
+Property showtarget faceheaderpanel/websync1
+Property hidetarget faceheaderpanel/websync0
+SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+m_hidden
+
+faceheaderpanel/faceicon: faceheaderpanel/faceicon_shadow
+m_offsetLT
+
+faceheaderpanel/faceicon_shadow: faceheaderpanel/headerbase
+m_offsetLT
+m_shadow
+
+
+#faceheaderpanel/cd_icon: faceheaderpanel/create_cd
+#m_offsetLT
+#faceheaderpanel/create_cd: faceheaderpanel/headerbase
+#m_offsetLT
+#Property normalcursor 1
+#Property mousedown 1
+#SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+faceheaderpanel/set_thumbnail_icon: faceheaderpanel/set_thumbnail
+
+faceheaderpanel/set_thumbnail: faceheaderpanel/headerbase
+m_offsetLT
+SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+faceheaderpanel/face_movie_icon: faceheaderpanel/create_face_movie
+
+faceheaderpanel/create_face_movie: faceheaderpanel/headerbase
+m_offsetLT
+SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+faceheaderpanel/movie_icon: faceheaderpanel/create_movie
+
+faceheaderpanel/create_movie: faceheaderpanel/headerbase
+m_offsetLT
+#Property normalcursor 1
+#Property mousedown 1
+SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+faceheaderpanel/collage_icon: faceheaderpanel/create_collage
+
+faceheaderpanel/create_collage: faceheaderpanel/headerbase
+m_offsetLT
+#Property normalcursor 1
+#Property mousedown 1
+SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+#---Select ----------------------
+faceheaderpanel/selecthelp: faceheaderpanel/headerbase
+m_offsetLT
+
+#faceheaderpanel/select_label: faceheaderpanel/headerbase
+#m_offsetLT
+#Property textalign right
+##XConstraint 1, 0, 338
+
+#faceheaderpanel/star_icon: faceheaderpanel/select_star
+#m_offsetLT
+#faceheaderpanel/select_star: faceheaderpanel/headerbase
+#Property normalcursor 1
+#Property mousedown 1
+#m_offsetLT
+#SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+
+faceheaderpanel/face_zoom_icon: faceheaderpanel/face_zoom
+
+faceheaderpanel/face_zoom: faceheaderpanel/zoom_container
+m_offsetLT
+SharedHandler faceheaderpanel/zoomtip hottip faceheaderpanel/zoom_label
+
+faceheaderpanel/picture_zoom_icon: faceheaderpanel/picture_zoom
+
+faceheaderpanel/picture_zoom: faceheaderpanel/zoom_container
+m_offsetLT
+Property setpressed 1
+SharedHandler faceheaderpanel/zoomtip hottip faceheaderpanel/zoom_label
+
+faceheaderpanel/zoom_container: faceheaderpanel/headerbase
+m_offsetRT
+
+faceheaderpanel/zoom_label: faceheaderpanel/headerbase
+m_offsetRT
+m_buttonfont
+Property textalign right
+
+faceheaderpanel/sug_hottip: faceheaderpanel/headerbase
+m_offsetRT
+m_buttonfont
+
+
+#faceheaderpanel/toggle_faces: faceheaderpanel/headerbase
+#Property normalcursor 1
+#Property mousedown 1
+#m_offsetRT
+#SharedHandler faceheaderpanel/tip hottip faceheaderpanel/create_label
+#m_hidden
+
+#---Save Edits ----------------------
+
+
+#---Buttons ----------------------
+
+faceheaderpanel/pwa_icon: faceheaderpanel/pwa_button
+
+faceheaderpanel/pwa_button: faceheaderpanel/headerbase
+m_offsetLT
+m_hidden
+
+faceheaderpanel/sug_filter_icon: faceheaderpanel/sug_filter
+
+faceheaderpanel/sug_filter: faceheaderpanel/headerbase
+m_offsetRT
+SharedHandler faceheaderpanel/sugtip hottip faceheaderpanel/sug_hottip
+
+faceheaderpanel/sug_label: faceheaderpanel/headerbase
+m_offsetRT
+m_displayfont12
+
+#faceheaderpanel/selectsug: faceheaderpanel/headerbase
+#m_offsetLT
+##SharedHandler faceheaderpanel/sugtip hottip faceheaderpanel/zoom_label
+
+faceheaderpanel/confirmsug: faceheaderpanel/headerbase
+m_offsetRT
+SharedHandler faceheaderpanel/sugtip hottip faceheaderpanel/sug_hottip
+
+faceheaderpanel/confirmsel: faceheaderpanel/headerbase
+m_offsetRT
+m_hidden
+SharedHandler faceheaderpanel/sugtip hottip faceheaderpanel/sug_hottip
+
+faceheaderpanel/removesel: faceheaderpanel/headerbase
+m_offsetRT
+SharedHandler faceheaderpanel/sugtip hottip faceheaderpanel/sug_hottip
+
+faceheaderpanel/moresug: faceheaderpanel/headerbase
+m_offsetRT
+#SharedHandler faceheaderpanel/zoomtip hottip faceheaderpanel/zoom_label
+
+faceheaderpanel/shadow: faceheaderpanel/headerbase
+m_scaleX
+m_offsetT
+
+#---Base ----------------------
+
+faceheaderpanel/headerbase0: root
+m_scaleX
+m_offsetT
+
+faceheaderpanel/headerbase1: root
+m_scaleX
+m_offsetT
+m_hidden
+
+faceheaderpanel/headerbase: root
+m_scaleX
+m_offsetT
+
+#includeredirect faceheaderpaneltext.tre faceheaderpanel

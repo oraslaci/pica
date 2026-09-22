@@ -1,0 +1,4 @@
+#includeonce macros.tre
+Property button_state_decrect_n globalbuttons/right_segment_n
+Property button_state_decrect_p globalbuttons/right_segment_p
+Property button_state_decrect_h globalbuttons/right_segment_h

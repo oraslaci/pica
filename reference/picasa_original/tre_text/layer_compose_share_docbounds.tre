@@ -1,0 +1,26 @@
+#-----------------------------------------------------------
+# gmail compose
+#-----------------------------------------------------------
+Label compose_mail/to_text
+To:
+
+Label compose_mail/subject_text
+Subject:
+
+Tooltip compose_mail/discardimage
+Remove selected image from attachment
+
+Label compose_mail/changeuser
+Change User
+
+Label compose_mail/send
+Send
+
+Label compose_mail/discard
+Discard
+
+Label compose_mail/sendb
+Send
+
+Label compose_mail/discardb
+Discard

@@ -1,0 +1,18 @@
+#-----------------------------------------------------------
+# SEARCH OPTIONS
+#-----------------------------------------------------------
+
+Label searchoptions/viewallbutton
+Back to View All
+
+Tooltip searchoptions/viewallbutton
+Exit Search Mode
+
+Label searchoptions/label_searchresult
+Search Result:
+
+#Label searchoptions/label_searchall
+#All
+
+#Label searchoptions/label_searchnewer
+#Newest

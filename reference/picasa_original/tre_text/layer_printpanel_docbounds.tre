@@ -1,0 +1,80 @@
+#printoptions
+
+Label printoptions/apply
+Apply
+
+Tooltip printoptions/apply
+Apply selected options to Photos
+
+Label printoptions/ok
+OK
+
+Tooltip printoptions/ok
+Apply selected options to Photos and close this dialog
+
+Label printoptions/cancel
+Cancel
+
+Tooltip printoptions/cancel
+Close this dialog without saving changes
+
+Label printoptions/border_label
+Border
+
+Label printoptions/border_size_label
+Border width
+
+Label printoptions/border_none_label
+None
+
+Label printoptions/border_max_label
+Max.
+
+Label printoptions/border_color_label
+Border color
+
+Label printoptions/caption_label
+Captions
+
+Label printoptions/usenotext_label
+No text
+
+Label printoptions/usecaption_label
+Caption
+
+Label printoptions/usefilename_label
+File name
+
+Label printoptions/useexif_label
+Exif information
+
+Label printoptions/caption_color_label
+Text Color
+
+Label printoptions/caption_font_label
+Font
+
+Label printoptions/caption_size_label
+Size
+
+Label printoptions/wrap_checkbox_label
+Wrap text
+
+Label printoptions/textbelowimage_label
+Below image
+
+Label printoptions/textonimage_label
+On image
+
+Label printoptions/textonborder_label
+On border
+
+Label printoptions/bottomonly_checkbox_label
+Bottom only
+
+Label printoptions/evenwidth_checkbox_label
+Even width border
+
+Label printoptions/disabled_label
+Sorry, but these options cannot be used when printing contact sheets.
+

@@ -1,0 +1,11 @@
+#-----------------------------------------------------------
+# ONEUP
+#-----------------------------------------------------------
+Label oneup/tllabel
+Timeline
+
+Label oneup/bcklabel
+Exit
+
+Text oneup/tpslabel
+Display Time

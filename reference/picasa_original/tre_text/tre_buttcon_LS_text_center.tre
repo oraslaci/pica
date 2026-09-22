@@ -1,0 +1,11 @@
+#includeonce macros.tre
+Property button_state_n globalbuttons/b132_n
+Property button_state_p globalbuttons/b132_p
+Property button_state_h globalbuttons/b132_h
+Property button_buttcon 1
+#m_buttontypecolor
+#cd -label
+#m_buttonfontRC
+#cd ..
+#cd _icon
+#m_buttoniconleft

@@ -1,0 +1,8 @@
+bigslider/thumb: bigslider/bigslider
+XConstraint 0.5, 0, 0
+YConstraint 0.5, 0.5, -1
+
+bigslider/bigslider: root
+MaintainOffset top
+MaintainOffset left
+Property slider 3

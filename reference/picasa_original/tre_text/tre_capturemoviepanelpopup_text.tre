@@ -1,0 +1,186 @@
+#includeonce macros.tre
+#include capturemoviepanelpopup_text.tre
+
+#----------------------------------------
+# Filmstrip - Control
+#----------------------------------------
+
+capturemoviepanelpopup/prev: capturemoviepanelpopup/filmcontainer
+m_offsetLT
+m_autorepeat
+
+capturemoviepanelpopup/next: capturemoviepanelpopup/filmcontainer
+m_offsetRT
+m_autorepeat
+
+capturemoviepanelpopup/indicator: capturemoviepanelpopup/filmstrip
+m_centerX
+YConstraint 0, 0, 0
+
+capturemoviepanelpopup/filmstrip: capturemoviepanelpopup/filmclip
+m_scaleXY
+
+capturemoviepanelpopup/filmclip: capturemoviepanelpopup/filmcontainer
+m_offsetLTRB
+
+capturemoviepanelpopup/filmcontainer_overlayL: capturemoviepanelpopup/filmcontainer
+m_offsetB
+XConstraint 0, 0, 0
+
+capturemoviepanelpopup/filmcontainer_overlayR: capturemoviepanelpopup/filmcontainer
+m_offsetB
+XConstraint 1, 1, 0
+
+capturemoviepanelpopup/filmcontainer_overlayC: capturemoviepanelpopup/filmcontainer
+m_offsetB
+XConstraint 0, 0, 14
+XConstraint 1, 1, -14
+
+capturemoviepanelpopup/filmcontainer: capturemoviepanelpopup/basepanel
+m_offsetB
+XConstraint 0, 0, 10
+XConstraint 1, 1, -10
+
+
+#----------------------------------------
+# Movie Creator Base Elements
+#----------------------------------------
+capturemoviepanelpopup/movieparent: capturemoviepanelpopup/moviescale
+m_hidden
+
+capturemoviepanelpopup/moviescale: capturemoviepanelpopup/moviebk
+m_scaleXY
+
+capturemoviepanelpopup/activitycontainer: capturemoviepanelpopup/moviebk
+m_centerX
+YConstraint .5, .5, -30
+m_hidden
+
+capturemoviepanelpopup/capture_bgtext: capturemoviepanelpopup/moviebk
+m_displayfont18_Reg
+m_centerXY
+
+capturemoviepanelpopup/moviebk: capturemoviepanelpopup/basepanel
+m_offsetLTRB
+
+#Settings ----------------------------------------
+
+capturemoviepanelpopup/video_label: capturemoviepanelpopup/settingspanel
+m_offsetLT
+m_displayfont14
+Property textalign right
+
+capturemoviepanelpopup/videosrc: capturemoviepanelpopup/settingspanel
+Property itempadding 2 2 22 2
+m_offsetLT
+
+capturemoviepanelpopup/audio_label: capturemoviepanelpopup/settingspanel
+m_offsetLT
+m_displayfont14
+Property textalign right
+
+capturemoviepanelpopup/audiosrc: capturemoviepanelpopup/settingspanel
+Property itempadding 2 2 22 2
+m_offsetLT
+
+capturemoviepanelpopup/size_label: capturemoviepanelpopup/settingspanel
+m_offsetLT
+m_displayfont14
+Property textalign right
+
+capturemoviepanelpopup/outputsize: capturemoviepanelpopup/settingspanel
+Property itempadding 2 2 22 2
+m_offsetLT
+
+capturemoviepanelpopup/settings_apply-label: capturemoviepanelpopup/settings_apply
+m_buttonfontC
+capturemoviepanelpopup/settings_apply: capturemoviepanelpopup/settingspanel
+m_buttontypecolor
+Property showtarget capturemoviepanelpopup/basepanel
+Property hidetarget capturemoviepanelpopup/settingspanel
+m_offsetLT
+
+capturemoviepanelpopup/settings_cancel-label: capturemoviepanelpopup/settings_cancel
+m_buttonfontC
+capturemoviepanelpopup/settings_cancel: capturemoviepanelpopup/settingspanel
+m_buttontypecolor
+Property showtarget capturemoviepanelpopup/basepanel
+Property hidetarget capturemoviepanelpopup/settingspanel
+m_offsetLT
+
+#----------------------------------------
+capturemoviepanelpopup/clipdetailtext: capturemoviepanelpopup/basepanel
+#m_hidden
+m_displayfont12
+m_offsetLB
+
+capturemoviepanelpopup/clipsize: capturemoviepanelpopup/basepanel
+#m_hidden
+m_displayfont12
+Property textalign right
+m_offsetRB
+
+capturemoviepanelpopup/camtext: capturemoviepanelpopup/basepanel
+m_displayfont12
+m_offsetLT
+
+capturemoviepanelpopup/capture_icon: capturemoviepanelpopup/capture
+m_offsetLT
+capturemoviepanelpopup/capture-label: capturemoviepanelpopup/capture
+m_buttonfontRC
+capturemoviepanelpopup/capture: capturemoviepanelpopup/capturegroup
+m_buttontypecolor
+m_offsetLT
+Property showtarget capturemoviepanelpopup/stop
+Property hidetarget capturemoviepanelpopup/capture
+
+capturemoviepanelpopup/stop_icon: capturemoviepanelpopup/stop
+m_offsetLT
+capturemoviepanelpopup/stop-label: capturemoviepanelpopup/stop
+m_buttonfontRC
+capturemoviepanelpopup/stop: capturemoviepanelpopup/capturegroup
+m_buttontypecolor
+m_offsetLT
+Property hidetarget capturemoviepanelpopup/stop
+Property showtarget capturemoviepanelpopup/capture
+m_hidden
+
+capturemoviepanelpopup/live_video_icon: capturemoviepanelpopup/live_video
+m_offsetLT
+capturemoviepanelpopup/live_video-label: capturemoviepanelpopup/live_video
+m_buttonfontRC
+capturemoviepanelpopup/live_video: capturemoviepanelpopup/capturegroup
+m_buttontypecolor
+m_offsetLT
+m_hidden
+
+capturemoviepanelpopup/snapshot_icon: capturemoviepanelpopup/snapshot
+m_centerXY
+capturemoviepanelpopup/snapshot: capturemoviepanelpopup/capturegroup
+m_offsetLT
+
+capturemoviepanelpopup/capturegroup: capturemoviepanelpopup/basepanel
+m_offsetB
+m_centerX
+
+capturemoviepanelpopup/camchange-label: capturemoviepanelpopup/camchange
+m_buttonfontC
+capturemoviepanelpopup/camchange: capturemoviepanelpopup/basepanel
+m_buttontypecolor
+Property hidetarget capturemoviepanelpopup/basepanel
+Property showtarget capturemoviepanelpopup/settingspanel
+m_offsetRT
+
+capturemoviepanelpopup/done-label: capturemoviepanelpopup/done
+m_buttonfontC
+capturemoviepanelpopup/done: capturemoviepanelpopup/basepanel
+m_buttontypecolor
+m_offsetB
+m_centerX
+
+capturemoviepanelpopup/settingspanel: root
+m_scaleXY
+
+capturemoviepanelpopup/basepanel: root
+m_scaleXY
+m_opaque

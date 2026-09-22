@@ -1,0 +1,6 @@
+throttle/throttleposition: throttle/tilebg
+
+throttle/throttlethumb: throttle/tilebg
+XConstraint 1, 1, 0
+YConstraint 0.5, 0.5, 0
+Property drag 1

@@ -1,0 +1,48 @@
+#-----------------------------------------------------------
+# Movie Create
+#-----------------------------------------------------------
+
+Label capturemoviepanelpopup/done
+Done
+
+#Label capturemoviepanelpopup/cancel
+#Cancel
+
+Label capturemoviepanelpopup/capture
+Record
+
+Label capturemoviepanelpopup/stop
+Stop
+
+Label capturemoviepanelpopup/live_video
+Camera
+
+Label capturemoviepanelpopup/camchange
+Settings
+
+Tooltip capturemoviepanelpopup/capture
+Start recording from camera
+
+Tooltip capturemoviepanelpopup/stop
+Stop recording from camera
+
+Tooltip capturemoviepanelpopup/live_video
+Record live video from camera
+
+Tooltip capturemoviepanelpopup/camchange
+Change camera settings
+
+Label capturemoviepanelpopup/settings_cancel
+Cancel
+
+Label capturemoviepanelpopup/settings_apply
+Apply
+
+Label capturemoviepanelpopup/video_label
+Video
+
+Label capturemoviepanelpopup/size_label
+Size
+
+Label capturemoviepanelpopup/audio_label
+Audio

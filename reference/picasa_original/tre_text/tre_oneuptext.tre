@@ -1,0 +1,170 @@
+#-----------------------------------------------------------
+# INCLUDES 
+#-----------------------------------------------------------
+#includeonce macros.tre
+#-----------------------------------------------------------
+
+#-----------------------------------------------------------
+#Bicubic Picture
+#-----------------------------------------------------------
+oneup/oneup: oneup/bicubiccontainer
+m_centerXY
+#Property scaleclamp 1.5
+
+oneup/bicubiccontainer: oneup/back
+m_scaleXY
+
+oneup/back: root
+m_scaleXY
+
+oneup/auto2: root
+m_scaleX
+YConstraint 0, 0, 0
+YConstraint 1, 1, -97
+
+#-----------------------------------------------------------
+#Exit Slideshow
+#-----------------------------------------------------------
+oneup/exit_icon: oneup/exit
+m_buttoniconleft
+
+oneup/bcklabel: oneup/bcklabel_base
+m_displayfont12
+Property textalign center
+m_scaleX
+YConstraint .5, .5, -1
+
+oneup/bcklabel_base: oneup/exit
+m_offsetLTRB
+
+oneup/exit: oneup/stripback
+m_offsetLB
+m_hit_childlabel
+
+#-----------------------------------------------------------
+#To Timeline
+#-----------------------------------------------------------
+oneup/timeline_icon: oneup/timeline
+m_buttoniconleft
+
+oneup/tllabel: oneup/tllabel_base
+m_displayfont12
+Property textalign center
+m_scaleX
+YConstraint .5, .5, -1
+
+oneup/tllabel_base: oneup/timeline
+m_offsetLTRB
+
+oneup/timeline: oneup/centergroup
+m_offsetLB
+m_hit_childlabel
+
+#-----------------------------------------------------------
+#Center Group
+#-----------------------------------------------------------
+
+oneup/auto_icon: oneup/auto
+XConstraint 1, 1, -4
+YConstraint 0.5, 0.5, 2
+
+oneup/auto: oneup/centergroup
+m_offsetB
+m_centerX
+
+oneup/prev: oneup/centergroup
+Property mousedown 1
+m_offsetLB
+
+oneup/next: oneup/centergroup
+Property mousedown 1
+m_offsetLB
+
+#-----------------------------------------------------------
+#Rotate
+#-----------------------------------------------------------
+
+oneup/rotateleft: oneup/stripback
+m_offsetRB
+
+oneup/rotateright: oneup/stripback
+m_offsetRB
+
+#-----------------------------------------------------------
+#Star
+#-----------------------------------------------------------
+
+oneup/star: oneup/stripback
+m_offsetRB
+
+#-----------------------------------------------------------
+#Transition
+#-----------------------------------------------------------
+oneup/transtype: oneup/stripback
+m_offsetLB
+Property itempadding 2 2 22 2
+
+
+#-----------------------------------------------------------
+#Caption
+#-----------------------------------------------------------
+
+oneup/caption_icon: oneup/captionbutton
+XConstraint 1, 1, -5
+YConstraint 0.5, 0.5, -1
+
+oneup/caption_yesicon: oneup/captionbutton
+XConstraint 1, 1, -5
+YConstraint 0.5, 0.5, -1
+m_hidden
+
+oneup/captionbutton: oneup/stripback
+m_offsetRB
+Property showtarget oneup/caption_yesicon
+Property hidetarget oneup/caption_icon
+
+#-----------------------------------------------------------
+#Display Time
+#-----------------------------------------------------------
+oneup/plusone_icon: oneup/plusone
+XConstraint 0.5, 0.5, -1
+YConstraint 0.5, 0.5, 0
+
+oneup/plusone: oneup/dtclip
+m_offsetRB
+Property setautorepeat 1
+
+oneup/minusone_icon: oneup/minusone
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+
+oneup/minusone: oneup/dtclip
+m_offsetRB
+Property setautorepeat 1
+
+oneup/tps: oneup/dtclip
+m_displayfont12
+Property textalign center
+
+oneup/tpslabel: oneup/dtclip
+m_systemfont11
+Property textalign center
+
+oneup/dtclip: oneup/centergroup
+m_offsetRB
+
+oneup/centergroup: oneup/stripback
+m_offsetB
+m_centerX
+
+
+#-----------------------------------------------------------
+#Overlay Base
+#-----------------------------------------------------------
+oneup/stripback: root
+YConstraint 1, 1, -20
+m_centerX
+
+oneup/caption: root
+YConstraint 1, 1, -100
+m_centerX

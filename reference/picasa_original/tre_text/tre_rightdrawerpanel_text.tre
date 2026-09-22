@@ -1,0 +1,69 @@
+#-----------------------------------------------------------
+# INCLUDES 
+#-----------------------------------------------------------
+
+#includeonce macros.tre
+#include rightdrawerpanel_text.tre
+
+rightdrawerpanel/title_text: rightdrawerpanel/header
+m_centerXY
+m_displayfont16
+Property textalign center
+
+rightdrawerpanel/header: rightdrawerpanel/base_decrect
+m_offsetT
+XConstraint 0, 0, 3
+XConstraint 1, 1, 0
+
+rightdrawerpanel/close: rightdrawerpanel/base_decrect
+m_offsetRT
+
+rightdrawerpanel/size_toggle: rightdrawerpanel/base_decrect
+m_offsetLT
+
+
+#----------------
+# Properties
+#----------------
+rightdrawerpanel/propertiespanel: rightdrawerpanel/base_decrect
+m_offsetT
+XConstraint 0, 0, 4
+XConstraint 1, 1, -2
+YConstraint 1, 1, 0
+m_hidden
+
+#----------------
+# Tags
+#----------------
+rightdrawerpanel/tagpanel: rightdrawerpanel/base_decrect
+m_offsetT
+XConstraint 0, 0, 4
+XConstraint 1, 1, -2
+YConstraint 1, 1, -4
+m_hidden
+
+#----------------
+# People
+#----------------
+rightdrawerpanel/peoplepanel: rightdrawerpanel/base_decrect
+m_offsetT
+XConstraint 0, 0, 4
+XConstraint 1, 1, -2
+YConstraint 1, 1, 0
+m_hidden
+
+#----------------
+# Geo
+#----------------
+rightdrawerpanel/geopanel: rightdrawerpanel/base_decrect
+m_offsetT
+XConstraint 0, 0, 4
+XConstraint 1, 1, -2
+YConstraint 1, 1, 0
+m_hidden
+
+rightdrawerpanel/base_decrect: root
+m_scaleXY
+
+#rightdrawerpanel/base: root
+#m_scaleXY

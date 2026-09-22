@@ -1,0 +1,515 @@
+#-----------------------------------------------------------
+# INCLUDES 
+#-----------------------------------------------------------
+#includeonce macros.tre
+#include collagepaneltext.tre
+
+#-----------------------------------------------------------
+# TOOLS: things that affect nodes (borders, randomizer)
+#-----------------------------------------------------------
+##
+## RANDOMIZERS
+##
+collagepanel/rand_order: collagepanel/rand_group
+m_offsetLT
+
+collagepanel/rand_placement: collagepanel/rand_group
+m_offsetLT
+
+collagepanel/view_and_edit: collagepanel/rand_group
+m_offsetLT
+
+collagepanel/rand_group: collagepanel/previewshadow
+m_centerX
+YConstraint 0, 1, 2
+
+#-----------------------------------------------------------
+# BORDERS
+#-----------------------------------------------------------
+#collagepanel/border_preview0: collagepanel/border0
+#m_centerXY
+#collagepanel/border_label0: collagepanel/border0
+#YConstraint 0, 1, -26
+#Property fonttrack -1
+#Property fontsize 11
+#Property fontweight 700
+#Property fontleading 10
+#Property textalign center
+#Property textwrap 0
+#XConstraint 0, 0, 4
+#XConstraint 1, 1, -4
+collagepanel/border0: collagepanel/borders_group
+m_offsetLT
+
+#collagepanel/border_preview1: collagepanel/border1
+#m_centerXY
+#collagepanel/border_label1: collagepanel/border1
+#YConstraint 0, 1, -26
+#Property fonttrack -1
+#Property fontsize 11
+#Property fontweight 700
+#Property fontleading 10
+#Property textalign center
+#Property textwrap 0
+#XConstraint 0, 0, 4
+#XConstraint 1, 1, -4
+collagepanel/border1: collagepanel/borders_group
+m_offsetLT
+
+#collagepanel/border_preview2: collagepanel/border2
+#m_centerXY
+#collagepanel/border_label2: collagepanel/border2
+#YConstraint 0, 1, -26
+#Property fonttrack -1
+#Property fontsize 11
+#Property fontweight 700
+#Property fontleading 10
+#Property textalign center
+#Property textwrap 0
+#XConstraint 0, 0, 4
+#XConstraint 1, 1, -4
+collagepanel/border2: collagepanel/borders_group
+m_offsetLT
+
+collagepanel/borders_label: collagepanel/borders_label_clip
+m_displayfont14
+Property textalign center
+
+collagepanel/borders_label_clip: collagepanel/borders_group
+m_offsetT
+m_centerX
+
+collagepanel/borders_group: collagepanel/tabpanel1
+m_offsetT
+XConstraint 0,0,0
+XConstraint 1,1,0
+m_hidden
+
+#-----------------------------------------------------------
+# GRID SPACING
+#-----------------------------------------------------------
+collagepanel/spacing_label: collagepanel/spacing_label_clip
+m_displayfont14
+Property textalign center
+
+collagepanel/spacing_label_clip: collagepanel/spacing_group
+m_offsetT
+m_centerX
+
+collagepanel/min_spacing_label: collagepanel/spacing_group
+m_offsetLT
+m_displayfont12
+
+collagepanel/max_spacing_label: collagepanel/spacing_group
+m_displayfont12
+Property textalign right
+m_offsetLT
+
+spacing_slider/thumb: spacing_slider/bigslider
+m_centerXY
+spacing_slider/bigslider: root
+m_offsetLT
+Property slider 5
+collagepanel/spacing_slider_container: collagepanel/spacing_group
+m_offsetLT
+
+collagepanel/spacing_group: collagepanel/tabpanel1
+m_offsetT
+m_centerX
+m_hidden
+
+#-----------------------------------------------------------
+# FRAME GRID CENTER BUTTON 
+#-----------------------------------------------------------
+collagepanel/set_frame_center: collagepanel/tabpanel1
+m_offsetLT
+m_hidden
+
+#-----------------------------------------------------------
+# SHADOWS 
+#-----------------------------------------------------------
+collagepanel/shadow_checkbox_label: collagepanel/shadow_checkbox
+m_displayfont12
+m_offsetLT
+
+collagepanel/shadow_checkbox: collagepanel/tabpanel1
+m_offsetLT
+Property setpressed 1
+m_hit_childlabel
+
+#-----------------------------------------------------------
+# CAPTIONS 
+#-----------------------------------------------------------
+collagepanel/caption_checkbox_label: collagepanel/caption_checkbox
+m_displayfont12
+m_offsetLT
+
+collagepanel/caption_checkbox: collagepanel/tabpanel1
+m_offsetLT
+Property setpressed 1
+m_hit_childlabel
+
+
+collagepanel/leftdivider: collagepanel/tabpanel1
+m_offsetT
+m_centerX
+
+#-----------------------------------------------------------
+# PREVIEW AREA 
+#-----------------------------------------------------------
+collagepanel/previewshadow: collagepanel/previewinset
+
+collagepanel/previewroot: collagepanel/previewinset
+
+collagepanel/previewinset: collagepanel/previewclip
+XConstraint 0, 0, 12
+XConstraint 1, 1, -12
+YConstraint 0, 0, 35
+YConstraint 1, 1, -35
+#YConstraint 1, 1, -10
+
+#-----------------------------------------------------------
+# MEDIA BOX (CLIPS) 
+#-----------------------------------------------------------
+collagepanel/solo: collagepanel/tabpanel2
+m_offsetLTR
+YConstraint 1, 1, -10
+
+
+collagepanel/add_icon: collagepanel/addclips
+#m_buttoniconleft
+m_centerXY
+
+#collagepanel/addclips-label: collagepanel/addclips
+#m_buttonfontRC
+collagepanel/addclips: collagepanel/tabpanel2
+m_buttontypecolor
+m_offsetLT
+
+
+collagepanel/delete_icon: collagepanel/deleteclips
+#m_buttoniconleft
+m_centerXY
+
+#collagepanel/deleteclips-label: collagepanel/deleteclips
+#m_buttonfontRC
+collagepanel/deleteclips: collagepanel/tabpanel2
+m_buttontypecolor
+m_offsetLT
+
+
+collagepanel/back_icon: collagepanel/getmoreclips
+m_buttoniconleft
+
+collagepanel/getmoreclips-label: collagepanel/getmoreclips
+m_buttonfontRC
+collagepanel/getmoreclips: collagepanel/tabpanel2
+m_buttontypecolor
+m_offsetLT
+
+
+#-----------------------------------------------------------
+# PROGRESS GROUP 
+#-----------------------------------------------------------
+collagepanel/collageprog_title: collagepanel/collageprog_title_clip
+m_centerXY
+m_displayfont14
+Property textalign center
+
+collagepanel/collageprog_title_clip: collagepanel/collageprog_base
+m_centerX
+m_offsetT
+
+collagepanel/collageprog_status: collagepanel/collageprog_status_clip
+m_centerXY
+m_displayfont14
+Property textalign center
+
+collagepanel/collageprog_status_clip: collagepanel/collageprog_base
+m_centerX
+m_offsetT
+
+collagepanel/collageprog_spinner: collagepanel/collageprog_base
+m_centerXY
+
+collagepanel/collageprog_base: collagepanel/collageprog_clip
+m_scaleXY
+
+collagepanel/collageprog_clip: collagepanel/previewclip
+m_centerXY
+m_hidden
+
+collagepanel/previewclip: collagepanel/previewcontainer
+XConstraint 0,0,0
+XConstraint 1,1,0
+YConstraint 0,0,0
+YConstraint 1,1,0
+
+collagepanel/previewcontainer: collagepanel/rightcontainer
+m_scaleXY
+
+#-----------------------------------------------------------
+# NODE ACTIONS GROUP 
+#-----------------------------------------------------------
+collagepanel/select_all-label: collagepanel/select_all
+m_buttonfontC
+collagepanel/select_all: collagepanel/action_group
+m_buttontypecolor
+m_offsetLT
+
+collagepanel/select_none-label: collagepanel/select_none
+m_buttonfontC
+collagepanel/select_none: collagepanel/action_group
+m_buttontypecolor
+m_offsetLT
+
+collagepanel/remove_node-label: collagepanel/remove_node
+m_buttonfontC
+collagepanel/remove_node: collagepanel/action_group
+m_buttontypecolor
+m_offsetLT
+
+collagepanel/set_background-label: collagepanel/set_background
+m_buttonfontC
+collagepanel/set_background: collagepanel/action_group
+m_buttontypecolor
+m_offsetLT
+
+collagepanel/action_group: collagepanel/previewshadow
+m_centerX
+YConstraint 1, 0, -2
+
+#-----------------------------------------------------------
+# Z-ORDER GROUP 
+#-----------------------------------------------------------
+collagepanel/move_top: collagepanel/z_order_group
+m_offsetLT
+
+collagepanel/move_up: collagepanel/z_order_group
+m_offsetLT
+m_autorepeat
+
+collagepanel/move_down: collagepanel/z_order_group
+m_offsetLT
+m_autorepeat
+
+collagepanel/move_bottom: collagepanel/z_order_group
+m_offsetLT
+
+collagepanel/z_order_group: collagepanel/previewshadow
+m_centerY
+XConstraint 0, 1, 2
+m_hidden
+
+#-----------------------------------------------------------
+# SNAP ROTATION GROUP 
+#-----------------------------------------------------------
+collagepanel/snap_12: collagepanel/snap_rotation_group
+m_offsetLT
+
+collagepanel/snap_3: collagepanel/snap_rotation_group
+m_offsetLT
+
+collagepanel/snap_6: collagepanel/snap_rotation_group
+m_offsetLT
+
+collagepanel/snap_9: collagepanel/snap_rotation_group
+m_offsetLT
+
+collagepanel/snap_rotation_group: collagepanel/previewshadow
+m_centerY
+XConstraint 1, 0, -2
+m_hidden
+
+#-----------------------------------------------------------
+# THEME GROUP
+#-----------------------------------------------------------
+collagepanel/theme_popup: collagepanel/tabpanel1
+m_offsetT
+m_centerX
+Property itempadding 2 2 20 4
+
+#-----------------------------------------------------------
+# FORMAT GROUP
+#-----------------------------------------------------------
+collagepanel/format_title: collagepanel/format_title_clip
+m_displayfont14
+Property textalign Center
+
+collagepanel/format_title_clip: collagepanel/tabpanel1
+m_offsetT
+m_centerX
+
+collagepanel/format_menu: collagepanel/tabpanel1
+m_offsetT
+XConstraint 0, 0, 4
+Property itempadding 2 3 23 4
+Property maxrows 0
+
+collagepanel/delete_custom_aspect: collagepanel/tabpanel1
+m_offsetT
+XConstraint 1, 1, -4
+
+collagepanel/portrait_icon: collagepanel/portrait
+m_centerY
+XConstraint 0.5, 0.5, -1
+
+collagepanel/portrait: collagepanel/orientation_container
+m_offsetLT
+#XConstraint 0, 0, 42
+m_centerY
+
+collagepanel/landscape_icon: collagepanel/landscape
+m_centerY
+XConstraint 0.5, 0.5, 1
+
+collagepanel/landscape: collagepanel/orientation_container
+m_offsetLT
+#XConstraint 0, 0, 4
+m_centerY
+Property setpressed 1
+
+collagepanel/orientation_container: collagepanel/tabpanel1
+m_centerX
+m_offsetT
+
+#-----------------------------------------------------------
+# BACKGROUND GROUP
+#-----------------------------------------------------------
+collagepanel/bkg_settings_title: collagepanel/bkg_settings_title_clip
+m_displayfont14
+Property textalign Center
+
+collagepanel/bkg_settings_title_clip: collagepanel/tabpanel1
+m_offsetT
+m_centerX
+
+collagepanel/bkg_decrect: collagepanel/tabpanel1
+m_offsetLT
+
+collagepanel/color_bg_label: collagepanel/color_bg
+m_offsetLT
+m_displayfont12
+
+collagepanel/bitmap_bg_label: collagepanel/bitmap_bg
+m_offsetLT
+m_displayfont12
+
+collagepanel/bitmap_bg: collagepanel/background_types
+m_offsetLT
+Property showtarget collagepanel/background_container
+Property showtarget collagepanel/background_bitmap
+m_hit_childlabel
+
+collagepanel/color_bg: collagepanel/background_types
+m_offsetLT
+Property setpressed 1
+Property showtarget collagepanel/colorpick_container
+m_hit_childlabel
+
+collagepanel/background_types: collagepanel/tabpanel1
+m_offsetLT
+
+collagepanel/current_background: collagepanel/background_container
+m_offsetLT
+
+collagepanel/bkg_from_selection: collagepanel/background_container
+m_offsetLT
+
+collagepanel/background_container: collagepanel/tabpanel1
+m_offsetLT
+
+#-----------------------------------------------------------
+# COLORPICKER
+#-----------------------------------------------------------
+
+collagepanel/dropper_icon: collagepanel/colorpick_container
+m_offsetLT
+
+collagepanel/colorcircle: collagepanel/colorpick_container
+m_offsetLT
+Property round 3
+#XConstraint 0, 0, 1
+#YConstraint 0, 0, 1
+
+collagepanel/colorpick_container: collagepanel/tabpanel1
+m_offsetLT
+
+collagepanel/picker_panel: collagepanel/tabpanel1
+m_offsetLT
+m_hidden
+Property addtofocus bkgcolorpick/base
+Property palette 1
+
+
+
+#-----------------------------------------------------------
+# TAB NAVIGATION
+#-----------------------------------------------------------
+collagepanel/tab1-label: collagepanel/tab1
+m_tabfontC
+collagepanel/tab1: collagepanel/tabs
+m_buttontypecolor
+m_offsetLT
+Property showtarget collagepanel/tabpanel1
+Property setpressed 1
+
+collagepanel/tab2-label: collagepanel/tab2
+m_tabfontC
+collagepanel/tab2: collagepanel/tabs
+m_buttontypecolor
+m_offsetLT
+Property showtarget collagepanel/tabpanel2
+
+collagepanel/tabs: collagepanel/tabbase
+m_offsetL
+YConstraint 0, 0, 5
+
+#-----------------------------------------------------------
+# TAB1
+#-----------------------------------------------------------
+collagepanel/tabpanel1: collagepanel/tabbase
+XConstraint 0, 0, 4
+XConstraint 1, 1, -4
+YConstraint 0, 0, 30
+YConstraint 1, 1, -4
+
+#-----------------------------------------------------------
+# TAB2
+#-----------------------------------------------------------
+collagepanel/tabpanel2: collagepanel/tabbase
+XConstraint 0, 0, 4
+XConstraint 1, 1, -4
+YConstraint 0, 0, 30
+YConstraint 1, 1, -4
+m_hidden
+
+#-----------------------------------------------------------
+# GLOBAL BUTTONS 
+#-----------------------------------------------------------
+collagepanel/cancelbutton: collagepanel/tabbase
+m_offsetLB
+Property escapekey 1
+
+collagepanel/resetbutton: collagepanel/tabbase
+m_offsetLB
+
+collagepanel/makedesktop: collagepanel/tabbase
+m_offsetLB
+
+collagepanel/sharebutton: collagepanel/tabbase
+m_offsetLB
+
+#-----------------------------------------------------------
+# BASE GROUP
+#-----------------------------------------------------------
+collagepanel/rightcontainer: collagepanel/base
+m_offsetLTRB
+
+collagepanel/tabbase: collagepanel/base
+m_offsetLT
+YConstraint 1, 0, 406
+Property enableclip 0
+
+collagepanel/base: root
+m_scaleXY

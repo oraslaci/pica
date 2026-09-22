@@ -1,0 +1,5 @@
+#includeonce macros.tre
+Property button_state_n globalbuttons/bb_t
+Property button_state_p globalbuttons/bb_t
+Property button_state_h globalbuttons/bb_t
+Property throb 1

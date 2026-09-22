@@ -1,0 +1,126 @@
+#includeonce macros.tre
+#include buttonmgr_text.tre
+
+#----------------------------------------
+# Dialog Header
+#----------------------------------------
+
+
+
+buttonmgr/bottom_base: root
+m_offsetB
+m_scaleX
+
+buttonmgr/rightlist: buttonmgr/mid_decrect
+m_offsetL
+#XConstraint 0, 0, 10
+#XConstraint 1, 1, -10
+YConstraint 0, 0, 25
+YConstraint 1, 1, -10
+
+buttonmgr/leftlist: buttonmgr/mid_decrect
+m_offsetL
+#XConstraint 0, 0, 10
+#XConstraint 1, 1, -10
+YConstraint 0, 0, 25
+YConstraint 1, 1, -10
+
+buttonmgr/rightlist_text: buttonmgr/rightlist_textclip
+m_displayfont14
+m_centerXY
+
+buttonmgr/leftlist_text: buttonmgr/leftlist_textclip
+m_displayfont14
+m_centerXY
+
+
+buttonmgr/rightlist_textclip: buttonmgr/mid_decrect
+m_offsetL
+YConstraint 0, 0, 6
+
+buttonmgr/leftlist_textclip: buttonmgr/mid_decrect
+m_offsetL
+YConstraint 0, 0, 6
+
+
+buttonmgr/mid_decrect: buttonmgr/mid_clip
+XConstraint 0,0,10
+XConstraint 1,1,-10
+YConstraint 0,0,10
+YConstraint 1,1,-10
+
+buttonmgr/mid_clip: buttonmgr/basepanel
+XConstraint 0,0,0
+XConstraint 1,1,0
+YConstraint 0,0,64
+YConstraint 1,1,-45
+buttonmgr/add-label: buttonmgr/add
+m_buttonfontC
+buttonmgr/add: root
+m_buttontypecolor
+m_offsetLT
+m_disabled
+
+buttonmgr/remove-label: buttonmgr/remove
+m_buttonfontC
+buttonmgr/remove: root
+m_buttontypecolor
+m_offsetLT
+m_disabled
+
+buttonmgr/moveup-label: buttonmgr/moveup
+m_buttonfontC
+buttonmgr/moveup: root
+m_buttontypecolor
+m_offsetLT
+m_disabled
+
+buttonmgr/movedown-label: buttonmgr/movedown
+m_buttonfontC
+buttonmgr/movedown: root
+m_buttontypecolor
+m_offsetLT
+m_disabled
+
+buttonmgr/usedefaults-label: buttonmgr/usedefaults
+m_buttonfontC
+buttonmgr/usedefaults: root
+m_buttontypecolor
+m_offsetLB
+
+buttonmgr/browse-label: buttonmgr/browse
+m_buttonfontC
+buttonmgr/browse: root
+m_buttontypecolor
+m_offsetLB
+m_hidden
+
+buttonmgr/ok-label: buttonmgr/ok
+m_buttonfontC
+buttonmgr/ok: root
+m_buttontypecolor
+m_offsetRB
+
+buttonmgr/cancel-label: buttonmgr/cancel
+m_buttonfontC
+buttonmgr/cancel: root
+m_buttontypecolor
+m_offsetRB
+
+
+
+
+buttonmgr/instructions: root
+m_offsetLT
+m_displayfont14
+
+buttonmgr/separators: root
+m_offsetLT
+
+#buttonmgr/size: root
+#m_offsetRB
+#Property winsize 1
+
+buttonmgr/basepanel: root
+m_scaleXY
+m_opaque

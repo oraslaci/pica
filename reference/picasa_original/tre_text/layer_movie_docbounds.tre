@@ -1,0 +1,16 @@
+
+modalprogress/progressclip: root
+modalprogress/progressbase: modalprogress/progressclip
+modalprogress/progressbarfill: modalprogress/progressbase
+
+modalprogress/progresstext: modalprogress/textcontainer
+m_displayfont14
+m_offsetL
+m_centerY
+modalprogress/textcontainer: root
+
+modalprogress/escmessage: modalprogress/escmessageclip
+m_displayfont12
+#m_centerY
+Property textalign center
+modalprogress/escmessageclip: root

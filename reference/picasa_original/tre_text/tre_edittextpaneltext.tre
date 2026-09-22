@@ -1,0 +1,223 @@
+#-----------------------------------------------------------
+# INCLUDES 
+#-----------------------------------------------------------
+#includeonce macros.tre
+#include edittextpaneltext.tre
+
+edittextpanel/text_icon: edittextpanel/base
+m_offsetLT
+
+edittextpanel/edittext_label: edittextpanel/base
+m_displayfont18_Reg
+m_offsetLT
+
+edittextpanel/font_label: edittextpanel/base
+m_displayfont12
+Property textalign right
+m_offsetLT
+
+edittextpanel/fontfamily: edittextpanel/base
+Property itempadding 2 2 10 2
+Property handlealphakeys
+m_offsetLT
+
+edittextpanel/size_label: edittextpanel/base
+m_displayfont12
+Property textalign right
+m_offsetLT
+
+edittextpanel/sizelist: edittextpanel/base
+Property itempadding 2 2 5 2
+m_offsetLT
+
+#-----------------------------------------------------------
+# bold, italic, underline buttons
+#-----------------------------------------------------------
+
+edittextpanel/style_label: edittextpanel/base
+m_displayfont12
+Property textalign right
+m_offsetLT
+
+edittextpanel/bold_icon: edittextpanel/bold
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+edittextpanel/bold: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+Property mousedown 1
+
+edittextpanel/italic_icon: edittextpanel/italic
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+edittextpanel/italic: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+Property mousedown 1
+
+edittextpanel/underline_icon: edittextpanel/underline
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 1
+edittextpanel/underline: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+Property mousedown 1
+
+#-----------------------------------------------------------
+# alignment buttons
+#-----------------------------------------------------------
+
+edittextpanel/align_label: edittextpanel/base
+m_displayfont12
+Property textalign right
+m_offsetLT
+
+edittextpanel/leftalign_icon: edittextpanel/leftalign
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+edittextpanel/leftalign: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+Property mousedown 1
+
+edittextpanel/centeralign_icon: edittextpanel/centeralign
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+edittextpanel/centeralign: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+Property mousedown 1
+
+edittextpanel/rightalign_icon: edittextpanel/rightalign
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 0
+edittextpanel/rightalign: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+Property mousedown 1
+
+#-----------------------------------------------------------
+# caption & clear buttons
+#-----------------------------------------------------------
+
+edittextpanel/usecaption-label: edittextpanel/usecaption
+m_buttonfontC
+edittextpanel/usecaption: edittextpanel/base
+m_buttontypecolor
+m_offsetLT
+
+edittextpanel/clearall-label: edittextpanel/clearall
+m_buttonfontC
+edittextpanel/clearall: edittextpanel/base
+m_buttontypecolor
+m_offsetLT
+
+#-----------------------------------------------------------
+# sliders
+#-----------------------------------------------------------
+edittextpanel/transparency_label: edittextpanel/base
+m_displayfont12
+Property textalign center
+m_offsetLT
+
+textopacityslider/thumb: textopacityslider/scaleslider
+m_centerXY
+textopacityslider/scaleslider: root
+m_offsetLT
+Property slider 2
+edittextpanel/textopacityslider_container: edittextpanel/base
+
+outlineweightslider/thumb: outlineweightslider/scaleslider
+m_centerXY
+outlineweightslider/scaleslider: root
+m_offsetLT
+Property slider 5
+edittextpanel/outlineweightslider_container: edittextpanel/base
+m_offsetLT
+
+#-----------------------------------------------------------
+# Cancel/Apply
+#-----------------------------------------------------------
+
+edittextpanel/ok_icon: edittextpanel/edittextapply
+m_buttoniconright
+edittextpanel/edittextapply-label: edittextpanel/edittextapply
+m_buttonfontC
+edittextpanel/edittextapply: edittextpanel/base
+m_buttontypecolor
+m_offsetLT
+Property hidetarget editpanel/edittextpanel
+Property hidetarget editpanel/edittextoverlay
+Property showtarget editpanel/editcontrols
+Property hidetarget editpanel/redselection
+
+edittextpanel/cancel_icon: edittextpanel/edittextcancel
+m_buttoniconright
+edittextpanel/edittextcancel-label: edittextpanel/edittextcancel
+m_buttonfontC
+edittextpanel/edittextcancel: edittextpanel/base
+m_buttontypecolor
+m_offsetLT
+Property hidetarget editpanel/edittextpanel
+Property hidetarget editpanel/edittextoverlay
+Property showtarget editpanel/editcontrols
+Property hidetarget editpanel/redselection
+Property escapekey 1
+
+#-----------------------------------------------------------
+# picker buttons
+#-----------------------------------------------------------
+edittextpanel/fill_color_icon: root
+m_offsetLT
+
+edittextpanel/outline_color_icon: root
+m_offsetLT
+
+edittextpanel/outlineweight_icon: root
+m_offsetLT
+
+edittextpanel/no_fill_icon: edittextpanel/no_fill
+m_centerXY
+edittextpanel/no_fill: edittextpanel/base
+m_offsetLT
+Property buttcon 1
+
+#-----------------------------------------------------------
+# colorpicker 1 -- TEXT FILL COLOR
+#-----------------------------------------------------------
+
+edittextpanel/colorcircle: edittextpanel/colorpicker_bevel
+m_centerXY
+
+edittextpanel/colorpicker_bevel: edittextpanel/base
+m_offsetLT
+
+edittextpanel/fill_picker_panel: edittextpanel/base
+m_offsetT
+m_centerX
+m_hidden
+Property addtofocus fill_colorpicker/base
+Property palette 0
+
+#-----------------------------------------------------------
+# colorpicker 2 -- TEXT OUTLINE COLOR
+#-----------------------------------------------------------
+
+edittextpanel/bgcolorcircle: edittextpanel/bgcolorpicker_bevel
+m_centerXY
+
+edittextpanel/bgcolorpicker_bevel: edittextpanel/base
+m_offsetLT
+
+edittextpanel/outline_picker_panel: edittextpanel/base
+m_offsetT
+m_centerX
+m_hidden
+Property addtofocus outline_colorpicker/base
+Property palette 0
+
+#-----------------------------------------------------------
+# base stuff
+#-----------------------------------------------------------
+edittextpanel/base: root
+m_scaleXY

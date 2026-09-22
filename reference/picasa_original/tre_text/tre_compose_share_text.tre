@@ -1,0 +1,218 @@
+#includeonce macros.tre
+#include compose_share_text.tre
+
+#----------------------------------------
+# LOGIN HEADER
+#----------------------------------------
+
+compose_share/curuser: compose_share/logininfo
+m_displayfont14
+Property textalign right
+m_offsetRT
+
+compose_share/changeuser-label: compose_share/changeuser
+m_displayfont14
+XConstraint 0, 0, 0
+YConstraint .5, .5, 0
+compose_share/changeuser: compose_share/logininfo
+m_offsetRT
+
+compose_share/divider: compose_share/logininfo
+m_offsetRB
+
+compose_share/logininfo: root
+m_offsetLT
+
+#----------------------------------------
+# ALBUM DISPLAY and STATUS
+#----------------------------------------
+compose_share/share_label: compose_share/share_label_clip
+m_displayfont18_Reg
+m_offsetLTR
+
+compose_share/share_label_clip: root
+m_offsetLTR
+
+compose_share/preview: compose_share/piccontainer
+m_centerXY
+Property croptofit
+
+compose_share/piccontainer: root
+m_offsetLT
+
+compose_share/picstroke: root
+m_offsetLT
+
+compose_share/infotext: root
+m_hidden
+m_displayfont14
+m_offsetLT
+
+compose_share/infotext_subhead: root
+m_hidden
+m_displayfont12
+m_offsetLT
+
+compose_share/visibility_label: compose_share/visibility_menu
+m_displayfont14
+m_offsetLT
+Property textalign right
+
+compose_share/visibility_menu: compose_share/center_base
+m_offsetT
+XConstraint 1 1 0
+Property itempadding 1 1 21 1
+
+#----------------------------------------
+# choices
+#----------------------------------------
+
+compose_share/choiceB_text: compose_share/choiceB
+m_displayfont12
+m_offsetLT
+
+compose_share/choiceB: compose_share/choices
+m_offsetLT
+m_hit_childlabel
+
+compose_share/choiceA_text: compose_share/choiceA
+m_displayfont12
+m_offsetLT
+
+compose_share/choiceA: compose_share/choices
+m_offsetLT
+m_hit_childlabel
+Property setpressed 1
+
+compose_share/choices: compose_share/choice_group
+m_offsetLT
+
+compose_share/warning_text: compose_share/choice_group
+m_displayfont14
+m_offsetLT
+
+compose_share/choice_group: root
+m_offsetLT
+
+#----------------------------------------
+# COMPOSE
+#----------------------------------------
+
+compose_share/to_text: compose_share/to_base
+m_offsetLT
+m_displayfont14
+Property textalign right
+
+compose_share/subject_text: compose_share/center_base
+m_offsetLT
+m_displayfont14
+Property textalign right
+
+#----------------------------------------
+# Send Buttons
+#---------------------------------------->
+compose_share/discard: compose_share/composeclip
+m_cmbuttonL
+m_offsetLB
+
+compose_share/send: compose_share/composeclip
+m_cmbuttonL
+m_offsetLB
+
+#-------------------------------------------
+# BIDI buttons
+#-------------------------------------------
+
+compose_share/ltr_icon: compose_share/ltr
+m_centerXY
+
+compose_share/ltr: compose_share/bidi_container
+m_offsetLT
+Property mousedown 1
+
+compose_share/rtl_icon: compose_share/rtl
+m_centerXY
+
+compose_share/rtl: compose_share/bidi_container
+m_offsetLT
+Property mousedown 1
+Property setpressed 1
+
+compose_share/bidi_container: compose_share/center_base
+m_offsetLT
+m_hidden
+
+
+#---------------------------------------->
+
+compose_share/to: compose_share/to_base
+m_offsetT
+XConstraint 0, 0, 98
+XConstraint 1, 1, -46
+YConstraint 1, 1, 0
+
+compose_share/people_icon: compose_share/autofill_faces_button
+m_centerXY
+
+compose_share/autofill_faces_button: compose_share/to_base
+m_offsetT
+XConstraint 1, 1, 0
+
+compose_share/groups_icon: compose_share/add_groups_button
+m_offsetLT
+compose_share/add_groups_button: compose_share/center_base
+m_offsetT
+XConstraint 0, 0, 98
+Property mousedown 1
+Property normalcursor 1
+
+compose_share/groups_label: compose_share/center_base
+m_offsetT
+XConstraint 0, 0, 175
+XConstraint 1, 1, 0
+
+compose_share/collab_label: compose_share/collab_checkbox
+m_offsetLT
+compose_share/collab_checkbox: compose_share/center_base
+m_disabled
+m_hit_childlabel
+m_offsetT
+XConstraint 0, 0, 98
+
+compose_share/subject: compose_share/center_base
+m_offsetT
+XConstraint 0, 0, 98
+XConstraint 1, 1, 0
+
+compose_share/content: compose_share/content_base
+m_offsetT
+XConstraint 0, 0, 0
+XConstraint 1, 1, 0
+YConstraint 1, 1, -10
+
+compose_share/to_base: compose_share/composeclip
+m_offsetT
+YConstraint 1, .15, 0
+XConstraint 0, 0, 10
+XConstraint 1, 1, -20
+
+compose_share/center_base: compose_share/composeclip
+YConstraint 0, .15, 0
+XConstraint 0, 0, 10
+XConstraint 1, 1, -20
+
+compose_share/content_base: compose_share/composeclip
+XConstraint 0, 0, 20
+XConstraint 1, 1, -20
+YConstraint 0, .15, 65
+YConstraint 1, 1, -36
+
+compose_share/size: compose_share/composeclip
+YConstraint 1, 1, 0
+XConstraint 1, 1, 0
+Property winsize 1
+
+compose_share/composeclip: root
+YConstraint 0, 0, 175
+YConstraint 1, 1, 0
+m_scaleX

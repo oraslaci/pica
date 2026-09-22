@@ -1,0 +1,80 @@
+#includeonce macros.tre
+#include choose_mail_text.tre
+
+choose_mail/selecttext: choose_mail/selectheader
+m_centerX
+Property textalign center
+m_displayfont14
+
+choose_mail/selectheader: choose_mail/picker
+m_scaleX
+
+#----------------------------------------
+# My Mail Program
+#----------------------------------------
+choose_mail/mail1: choose_mail/mymail
+m_displayfont18
+
+choose_mail/mail1a: choose_mail/mymail
+m_displayfont14
+
+choose_mail/mymail_icon: choose_mail/mymail
+choose_mail/mymail: choose_mail/picker
+m_centerX
+
+#----------------------------------------
+# Google Mail
+#----------------------------------------
+choose_mail/mail2: choose_mail/gsender
+m_displayfont18
+
+choose_mail/mail2a: choose_mail/gsender
+m_displayfont14
+
+choose_mail/gmailsignup1-label: choose_mail/gmailsignup1
+m_buttonfont14
+choose_mail/gmailsignup1: choose_mail/gsender
+m_offsetLT
+
+choose_mail/gsender_icon: choose_mail/gsender
+choose_mail/googsender_icon: choose_mail/gsender
+choose_mail/gsender: choose_mail/picker
+m_centerX
+#----------------------------------------
+choose_mail/remember: choose_mail/remember_container
+m_displayfont14
+m_centerY
+m_offsetL
+
+choose_mail/remember_container: choose_mail/checkbox
+m_offsetLT
+
+choose_mail/checkbox: choose_mail/prefcontainer
+m_hit_childlabel
+m_offsetLT
+#----------------------------------------
+choose_mail/help: choose_mail/helpbutton
+m_displayfont14
+Property textalign center
+m_offsetL
+m_centerY
+choose_mail/helpbutton_icon: choose_mail/helpbutton
+m_buttonicon
+choose_mail/helpbutton: choose_mail/prefcontainer
+m_offsetLT
+#----------------------------------------
+choose_mail/mailcancel: choose_mail/cancelbutton
+m_displayfont14
+Property textalign center
+m_offsetL
+m_centerY
+choose_mail/cancelbutton_icon: choose_mail/cancelbutton
+m_buttonicon
+choose_mail/cancelbutton: choose_mail/prefcontainer
+m_offsetLT
+
+choose_mail/prefcontainer: choose_mail/picker
+m_offsetT
+m_centerX
+
+choose_mail/picker: root

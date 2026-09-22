@@ -1,0 +1,10 @@
+#includeonce macros.tre
+# properties for a tab
+Property button_state_n tab/n
+Property button_state_p tab/p
+Property button_state_h tab/h
+Property button_buttcon 1
+Property normalcursor 1
+cd -icon
+XConstraint 0.5, 0.5, 0
+YConstraint 0.5, 0.5, 2

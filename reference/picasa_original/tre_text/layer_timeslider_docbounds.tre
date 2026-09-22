@@ -1,0 +1,209 @@
+#-----------------------------------------------------------
+#THUMBUI
+#-----------------------------------------------------------
+Text1 thumbui/lightbox_bgtext
+No photos found
+
+Text2 thumbui/lightbox_bgtext
+All Files are backed up in this set
+
+Text3 thumbui/lightbox_bgtext
+No photos found for cd
+
+Text4 thumbui/lightbox_bgtext
+All photos have been uploaded
+
+Text5 thumbui/lightbox_bgtext
+All photos currently online have these settings
+
+Text6 thumbui/lightbox_bgtext
+No photos can be removed from Picasa Web Albums
+
+Text7 thumbui/lightbox_bgtext
+No photos can be removed from Google Photos
+
+Label thumbui/albumview
+Back To Library
+
+Tooltip thumbui/loupehit
+Click and drag over photos to magnify them
+
+Tooltip thumbui/albumview
+Return to organized thumbnails
+
+Label thumbui/fullview
+Edit photos
+
+Tooltip thumbui/fullview
+Edit your photos
+
+Label thumbui/importbutton
+Import
+
+Tooltip thumbui/importbutton
+Get photos from a camera, scanner, or other media
+
+Tooltip thumbui/webcambutton
+Capture photos or video from a webcam or other video device
+
+Label thumbui/sbutton
+Slideshow
+
+#Tooltip thumbui/addkeywords
+#Tag photo(s) with words for searching
+
+Tooltip thumbui/people_toggle
+Show/Hide People Panel
+
+Tooltip thumbui/places_toggle
+Show/Hide Places Panel
+
+Tooltip thumbui/tags_toggle
+Show/Hide Tags Panel
+
+Tooltip thumbui/properties_toggle
+Show/Hide Properties Panel
+
+Tooltip thumbui/sbutton
+Watch a slideshow of photos in the selected Folder or Album
+
+Label thumbui/timelinebutton
+Timeline
+
+Tooltip thumbui/timelinebutton
+Timeline view of all your photos
+
+Label thumbui/cdmode
+Gift CD
+
+Tooltip thumbui/cdmode
+Create a CD with built-in slideshow for friends and family
+
+Label thumbui/backup
+Backup
+
+Tooltip thumbui/backup
+Archive your photos to a CD or DVD
+
+Label thumbui/visitweb
+Web View
+
+Tooltip thumbui/visitweb
+PLACEHOLDER
+
+#Label thumbui/scratchhold
+#Hold
+
+Tooltip thumbui/scratchhold
+Hold selected items
+
+#Label thumbui/scratchclear
+#Clear
+
+Tooltip thumbui/scratchclear
+Clear items from the selection
+
+#Label thumbui/addtobuttcon
+#Add to
+
+Tooltip thumbui/addtobuttcon
+Add selected items to an Album
+
+Tooltip thumbui/startoggle
+Add/Remove Star
+
+Tooltip thumbui/rotateleft
+Rotate Left
+
+Tooltip thumbui/rotateleft
+Rotate Left
+
+Text thumbui/scratchlabel
+Selection
+
+Label thumbui/librarylabel
+Library
+
+Tooltip thumbui/newfolder
+Move the selected files to a new folder
+
+Tooltip thumbui/folderviewpopup
+View options
+
+#-----------------------------------------------------------
+# Album list header
+#-----------------------------------------------------------
+Tooltip thumbui/folderview
+Set view to show folder tree structure
+
+Tooltip thumbui/flatview
+Set view to show flat folder structure
+
+Tooltip thumbui/newalbum
+Create a new album
+
+#-----------------------------------------------------------
+
+Tooltip thumbui/rotateright
+Rotate clockwise
+
+Tooltip thumbui/rotateleft
+Rotate counter-clockwise
+
+#-----------------------------------------------------------
+# MAIN-UI TOOLBAR BUTTONS
+#-----------------------------------------------------------
+Tooltip thumbui/smallthumbs
+Show photos using small thumbnails
+
+Tooltip thumbui/largethumbs
+Show photos using large thumbnails
+
+#Tooltip thumbui/fullview
+#View and edit one Photo at a time
+
+#-----------------------------------------------------------
+# MAIN-UI ONE-UP MODE
+#-----------------------------------------------------------
+Tooltip thumbui/next
+View the next Photo
+
+Tooltip thumbui/prev
+View the previous Photo
+
+#Tooltip thumbui/returntoalbum
+#Return to album thumbnail view
+
+
+#-----------------------------------------------------------
+Text thumbui/cd_label
+Create a Gift CD
+
+Text thumbui/backup_label
+Backup your photos
+
+Text thumbui/replication_label
+Batch Upload
+
+#-----------------------------------------------------------
+# Exit Solo via Search
+#-----------------------------------------------------------
+
+Label thumbui/lightbox_esolo_text
+No results found in this album
+
+Label thumbui/lightbox_esolo_button
+Search All
+
+#-----------------------------------------------------------
+# Single Action stuff
+#-----------------------------------------------------------
+
+Label thumbui/single_action_message
+Select items to add to your project's clips tray, then press the "Back" button to return to your project
+
+Tooltip thumbui/single_action_return
+Go back to what you were editing
+
+Tooltip thumbui/single_action_close
+Cancel "Get more"

@@ -1,0 +1,51 @@
+
+
+movieeditpanel/capture_icon: movieeditpanel/capture_frame
+m_offsetLT
+
+movieeditpanel/capture_frame: root
+m_hit_childlabel
+m_offsetLT
+
+movieeditpanel/export_movie_icon: movieeditpanel/export_movie
+m_offsetLT
+
+movieeditpanel/export_movie: root
+m_hit_childlabel
+m_offsetLT
+
+movieeditpanel/youtube_icon: movieeditpanel/export_youtube
+m_offsetLT
+
+movieeditpanel/export_youtube: root
+m_hit_childlabel
+m_offsetLT
+
+movieeditpanel/reset_trim: root
+m_offsetLT
+
+
+Label movieeditpanel/export_youtube
+Upload to YouTube
+
+Label movieeditpanel/export_movie
+Export Clip
+
+Label movieeditpanel/reset_trim
+Reset Start and End
+
+Label movieeditpanel/capture_frame
+Take Snapshot
+
+Tooltip movieeditpanel/export_youtube
+Upload your movie to YouTube
+
+Tooltip movieeditpanel/export_movie
+Save a clip of the movie between the start and end points
+
+Tooltip movieeditpanel/reset_trim
+Restore movie to its original length (remove start and end points)
+
+Tooltip movieeditpanel/capture_frame
+Capture current frame
+

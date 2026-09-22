@@ -1,0 +1,21 @@
+#-----------------------------------------------------------
+# KEYWORDS
+#-----------------------------------------------------------
+
+Label keywords/addbutton
+Add
+
+Label keywords/removebutton
+Remove
+
+Label keywords/closebutton
+Done
+
+Label keywords/addkeywords_label
+Add Tag:
+
+Label keywords/keywords_label
+Tags:
+
+Label keywords/readonly_label
+Tags cannot be modified because one or more items are read-only.

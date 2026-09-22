@@ -1,0 +1,323 @@
+#include acquirepanel_text
+
+#-----------------------------------------------------------
+# PROGRESS BAR
+#-----------------------------------------------------------
+# Leaving this all in for now...  UI still in flux.
+#acquirepanel/progressbase: acquirepanel/progressclip
+#m_offsetRT
+
+#acquirepanel/progressbarfill: acquirepanel/progressclip
+#m_offsetRT
+#m_hidden
+
+#acquirepanel/progresswaiting: acquirepanel/progressclip
+#m_offsetRT
+#m_hidden
+
+#acquirepanel/progressclip: acquirepanel/top_base
+#m_offsetRT
+
+acquirepanel/searchstatus: acquirepanel/softbevelLT
+m_displayfont14
+XConstraint 1 1 -20
+YConstraint 0 0 3
+
+#-----------------------------------------------------------
+# EXCLUDE DUPLICATES
+#-----------------------------------------------------------
+acquirepanel/excludedupes_label: acquirepanel/excludedupesbutton
+m_displayfont14
+m_offsetL
+m_centerY
+
+acquirepanel/excludedupesbutton: acquirepanel/softbevelLT
+m_hit_childlabel
+XConstraint 0 0 2
+YConstraint 0 0 5
+
+#-----------------------------------------------------------
+# SELECTION AREA
+#-----------------------------------------------------------
+acquirepanel/softbevelRT: acquirepanel/controlcontainer
+m_scaleXY
+
+acquirepanel/nothing: acquirepanel/selcontainer
+m_displayfont18
+Property textalign center
+m_centerXY
+
+acquirepanel/selcontainer: acquirepanel/softbevelLT
+m_offsetLTRB
+
+acquirepanel/deletedadorner: acquirepanel/center_base
+m_hidden
+
+#-----------------------------------------------------------
+# PREVIEW AREA
+#-----------------------------------------------------------
+acquirepanel/thumbpreview: acquirepanel/thumbpreviewbk
+m_centerX
+m_centerY
+Property scaleclamp 1
+m_shadow
+
+acquirepanel/thumbpreviewbk: acquirepanel/controlcontainer
+m_offsetLTRB
+
+acquirepanel/rotateright_icon: acquirepanel/rotate1button
+XConstraint 0.5, 0.5, 0
+m_centerY
+acquirepanel/rotate1button: acquirepanel/contbuttonscontainer
+m_offsetB
+XConstraint 1, 1, -6
+
+acquirepanel/rotateleft_icon: acquirepanel/rotate2button
+XConstraint 0.5, 0.5, 0
+m_centerY
+acquirepanel/rotate2button: acquirepanel/contbuttonscontainer
+m_offsetB
+XConstraint 1, 1, -42
+
+acquirepanel/nextbutton: acquirepanel/contbuttonscontainer
+m_offsetB
+XConstraint 0, .5, 3
+
+acquirepanel/previousbutton: acquirepanel/contbuttonscontainer
+m_offsetB
+XConstraint 1, .5, -3
+
+acquirepanel/startoggle_icon1: acquirepanel/startoggle
+XConstraint .5, .5, -1
+YConstraint .5, .5, -1
+m_hidden
+acquirepanel/startoggle_icon0: acquirepanel/startoggle
+XConstraint .5, .5, -1
+YConstraint .5, .5, -1
+acquirepanel/startoggle: acquirepanel/togglegroup
+m_offsetB
+Property showtarget acquirepanel/startoggle_icon1
+Property hidetarget acquirepanel/startoggle_icon0
+XConstraint 0, 0, 6
+
+acquirepanel/exclude_icon: acquirepanel/excludetoggle
+m_centerXY
+acquirepanel/excludetoggle: acquirepanel/togglegroup
+Property disabletarget acquirepanel/archivetoggle
+Property disabletarget acquirepanel/startoggle
+m_offsetB
+XConstraint 0, 0, 42
+
+acquirepanel/togglegroup: acquirepanel/contbuttonscontainer
+m_offsetB
+XConstraint 0, 0, 0
+
+acquirepanel/fileinfo: acquirepanel/fileinfocontainer
+m_centerXY
+m_displayfont12
+
+acquirepanel/fileinfocontainer: acquirepanel/controlcontainer
+m_offsetT
+m_centerX
+
+#-----------------------------------------------------------
+# IMPORT FROM
+#-----------------------------------------------------------
+acquirepanel/import_from_label: acquirepanel/import_from_label_rect
+m_centerXY
+m_displayfont16
+
+acquirepanel/import_from_label_rect: acquirepanel/top_base
+m_offsetLT
+
+acquirepanel/import_from_menu: acquirepanel/top_base
+XConstraint 0 0 112
+YConstraint 0 0 13
+
+#-----------------------------------------------------------
+# IMPORT TO
+#-----------------------------------------------------------
+acquirepanel/import_to_label: acquirepanel/bottom_label_rect
+m_displayfont16
+m_centerY
+m_offsetL
+
+acquirepanel/import_folder_menu: acquirepanel/bottom_base
+m_offsetLB
+
+acquirepanel/import_delimiter_label: acquirepanel/bottom_base
+m_offsetLB
+m_displayfont14
+
+acquirepanel/subfolder_label: acquirepanel/bottom_label_rect
+m_centerY
+m_displayfont16
+m_offsetL
+
+acquirepanel/subfolder: acquirepanel/bottom_base
+m_offsetLB
+
+acquirepanel/subfolder_menu: acquirepanel/bottom_base
+m_offsetLB
+
+#-----------------------------------------------------------
+# DELETE OPTIONS
+#-----------------------------------------------------------
+acquirepanel/delete_label: acquirepanel/bottom_label_rect
+m_displayfont16
+m_centerY
+m_offsetL
+
+acquirepanel/delete_menu: acquirepanel/bottom_base
+m_offsetLT
+
+acquirepanel/bottom_label_rect: acquirepanel/bottom_base
+m_offsetLT
+
+#-----------------------------------------------------------
+# SHARE WITH
+#-----------------------------------------------------------
+acquirepanel/upload_label: acquirepanel/upload_checkbox
+m_displayfont14
+m_centerY
+XConstraint 0 0 20
+
+acquirepanel/upload_checkbox: acquirepanel/share_container
+m_hit_childlabel
+m_centerY
+XConstraint 0 0 12
+
+acquirepanel/upload_label_rect: acquirepanel/share_container
+YConstraint 0 0 0
+m_offsetL
+
+acquirepanel/visibility_icon: acquirepanel/groups_container
+m_offsetT
+XConstraint 0 0 100
+
+acquirepanel/sync_starred_icon: acquirepanel/groups_container
+m_offsetT
+XConstraint 0 0 115
+
+acquirepanel/collab_icon: acquirepanel/groups_container
+m_offsetT
+XConstraint 0 0 130
+
+acquirepanel/sync_options_icon: acquirepanel/sync_options_button
+m_offsetLT
+acquirepanel/sync_options_button-label: acquirepanel/sync_options_button
+m_buttonfontLC
+acquirepanel/sync_options_button: acquirepanel/groups_container
+YConstraint 0 0 33
+XConstraint 0 0 30
+m_buttontypecolor
+Property mousedown 1
+Property normalcursor 1
+#SharedHandler headerpanel/tip hottip headerpanel/create_label
+
+acquirepanel/share_with_label: acquirepanel/groups_container
+m_displayfont14
+m_acquireFontYOffset
+XConstraint 0 0 155
+
+acquirepanel/groups_icon: acquirepanel/add_groups_button
+m_offsetLT
+acquirepanel/add_groups_button: acquirepanel/groups_container
+YConstraint 0 0 33
+XConstraint 0 0 155
+Property mousedown 1
+Property normalcursor 1
+
+acquirepanel/selected_groups_label: acquirepanel/groups_container
+m_displayfont14
+m_acquireFontYOffset
+XConstraint 0 0 225
+XConstraint 1 1 0
+
+acquirepanel/share_container: acquirepanel/bottom_base
+m_offsetT
+XConstraint 0 0 630
+Property enableclip 0
+
+acquirepanel/groups_container: acquirepanel/bottom_base
+m_offsetT
+XConstraint 0 0 630
+XConstraint 1 1 -5
+Property enableclip 0
+
+#-----------------------------------------------------------
+# IMPORT / CANCEL / IMPORT SELECTED BUTTONS
+#-----------------------------------------------------------
+
+acquirepanel/cancel_icon: acquirepanel/acancelbutton
+m_buttoniconright
+acquirepanel/acancelbutton-label: acquirepanel/acancelbutton
+m_buttonfontLC
+acquirepanel/acancelbutton: acquirepanel/buttons
+m_buttontypecolor
+m_enable_albummode
+Property escapekey 1
+m_offsetLB
+
+acquirepanel/ok_icon: acquirepanel/anowbutton
+m_buttoniconright
+acquirepanel/anowbutton: acquirepanel/buttons
+m_buttontypecolor
+m_enable_albummode
+m_offsetLB
+
+acquirepanel/import_selected: acquirepanel/buttons
+m_buttontypecolor
+m_offsetLB
+
+acquirepanel/buttons: acquirepanel/base
+XConstraint 1 1 0
+m_offsetB
+
+acquirepanel/importtiptext: acquirepanel/base
+m_displayfont14
+m_offsetLB
+
+acquirepanel/importtip_icon: acquirepanel/base
+m_offsetLB
+
+#-----------------------------------------------------------
+# BACKGROUND SEGMENTS & LINES
+#-----------------------------------------------------------
+
+acquirepanel/contbuttonscontainer: acquirepanel/controlcontainer
+m_offsetB
+m_scaleX
+
+acquirepanel/controlcontainer: acquirepanel/center_base
+XConstraint 1, 1, -18
+XConstraint 0, .525, 5
+YConstraint 0, 0, 4
+YConstraint 1, 1, -4
+
+acquirepanel/softbevelLT: acquirepanel/center_base
+XConstraint 0, 0, 18
+XConstraint 1, .525, -5
+YConstraint 0, 0, 4
+YConstraint 1, 1, -4
+
+acquirepanel/top_base: acquirepanel/base
+m_scaleX
+m_offsetT
+
+acquirepanel/center_base: acquirepanel/base
+XConstraint 0 0 5
+XConstraint 1 1 -5
+m_offsetTB
+
+acquirepanel/bottom_base: acquirepanel/base
+XConstraint 0 0 5
+XConstraint 1 1 -5
+m_offsetB
+Property enableclip 0
+
+acquirepanel/timesegment: root
+m_hidden
+
+acquirepanel/base: root
+m_scaleXY
