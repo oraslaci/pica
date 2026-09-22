@@ -31,10 +31,15 @@ pub fn run_server_only() {
     let db = DbManager::new().expect("Failed to initialize database");
     initialize_default_folders(&db);
     let thumbnailer = Arc::new(ThumbnailManager::new());
+    let available_cpus = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    // Multiple parallel workers for speed, capped between 2 and 4 to protect laptop CPU/battery
+    let num_workers = (available_cpus / 2).clamp(2, 4);
     let scheduler = Arc::new(thumbnailer::ThumbnailScheduler::new(
         thumbnailer.clone(),
         Some(db.clone()),
-        4,
+        num_workers,
     ));
     let is_scanning = Arc::new(AtomicBool::new(false));
 
@@ -79,10 +84,15 @@ pub fn run() {
     initialize_default_folders(&db);
 
     let thumbnailer = Arc::new(ThumbnailManager::new());
+    let available_cpus = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    // Multiple parallel workers for speed, capped between 2 and 4 to protect laptop CPU/battery
+    let num_workers = (available_cpus / 2).clamp(2, 4);
     let scheduler = Arc::new(thumbnailer::ThumbnailScheduler::new(
         thumbnailer.clone(),
         Some(db.clone()),
-        4,
+        num_workers,
     ));
     let is_scanning = Arc::new(AtomicBool::new(false));
 

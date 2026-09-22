@@ -10,6 +10,7 @@
   } from '@lucide/svelte';
   import type { FolderWithPhotos, Photo } from '../types';
   import { getThumbnailUrl, setThumbnailPriority, toggleFavorite } from '../api';
+  import PhotoThumbnail from './PhotoThumbnail.svelte';
 
   let {
     folderGroups = [],
@@ -178,6 +179,10 @@
     return slices;
   });
 
+  // Scroll direction tracking
+  let lastScrollTop = $state(0);
+  let scrollDirection = $state<'down' | 'up'>('down');
+
   // Collect all photos currently in the visible window slice
   const visiblePhotos = $derived.by(() => {
     const list: Photo[] = [];
@@ -190,17 +195,87 @@
     return list;
   });
 
-  // Dual-priority thumbnail scheduler integration:
-  // Notify backend of visible photo hashes, preempting/emptying stale high-priority queue
+  // Calculate photos within an arbitrary vertical range [rangeTop, rangeBottom] across all folders
+  function getPhotosInRange(rangeTop: number, rangeBottom: number): Photo[] {
+    if (rangeBottom <= rangeTop) return [];
+    const result: Photo[] = [];
+    for (const layout of folderLayouts) {
+      if (layout.isCollapsed || layout.photos.length === 0) continue;
+      const pTop = layout.photosTop;
+      const pBottom = pTop + layout.photosHeight;
+
+      if (pBottom <= rangeTop || pTop >= rangeBottom) continue;
+
+      const overlapTop = Math.max(pTop, rangeTop);
+      const overlapBottom = Math.min(pBottom, rangeBottom);
+
+      const startRow = Math.max(
+        0,
+        Math.min(layout.numRows - 1, Math.floor((overlapTop - pTop) / rowHeight))
+      );
+      const endRow = Math.max(
+        startRow + 1,
+        Math.min(layout.numRows, Math.ceil((overlapBottom - pTop) / rowHeight))
+      );
+
+      const startIndex = startRow * columns;
+      const endIndex = Math.min(layout.photos.length, endRow * columns);
+      result.push(...layout.photos.slice(startIndex, endIndex));
+    }
+    return result;
+  }
+
+  // Compute on-screen hashes and previous/next 0.x screen lookaround hashes
+  const viewPriority = $derived.by(() => {
+    // 1. Photos currently visible on the screen
+    const onScreen = getPhotosInRange(scrollTop, scrollTop + containerHeight);
+    const screenHashes: string[] = [];
+    const seen = new Set<string>();
+
+    for (const p of onScreen) {
+      if (!seen.has(p.file_hash)) {
+        seen.add(p.file_hash);
+        screenHashes.push(p.file_hash);
+      }
+    }
+
+    // 2. Previous and next 0.7 part of the screen (lookaround)
+    const lookaroundDist = Math.max(containerHeight * 0.7, 500);
+    const nextPhotos = getPhotosInRange(
+      scrollTop + containerHeight,
+      scrollTop + containerHeight + lookaroundDist
+    );
+    const prevPhotos = getPhotosInRange(
+      Math.max(0, scrollTop - lookaroundDist),
+      scrollTop
+    ).reverse();
+
+    // Order lookaround by scroll direction
+    const lookaroundPhotos = scrollDirection === 'down'
+      ? [...nextPhotos, ...prevPhotos]
+      : [...prevPhotos, ...nextPhotos];
+
+    const nearHashes: string[] = [];
+    for (const p of lookaroundPhotos) {
+      if (!seen.has(p.file_hash)) {
+        seen.add(p.file_hash);
+        nearHashes.push(p.file_hash);
+      }
+    }
+
+    return { screenHashes, nearHashes };
+  });
+
+  // Notify backend of current screen and near-screen lookaround
   let priorityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
-    const hashes = visiblePhotos.map((p) => p.file_hash);
-    if (hashes.length === 0) return;
+    const { screenHashes, nearHashes } = viewPriority;
+    if (screenHashes.length === 0 && nearHashes.length === 0) return;
 
     if (priorityDebounceTimer) clearTimeout(priorityDebounceTimer);
     priorityDebounceTimer = setTimeout(() => {
-      setThumbnailPriority(hashes, true);
-    }, 60);
+      setThumbnailPriority(screenHashes, nearHashes);
+    }, 40);
 
     return () => {
       if (priorityDebounceTimer) clearTimeout(priorityDebounceTimer);
@@ -288,6 +363,13 @@
   function handleScroll(e: Event) {
     const target = e.target as HTMLElement;
     const st = target.scrollTop;
+    if (st > lastScrollTop + 2) {
+      scrollDirection = 'down';
+    } else if (st < lastScrollTop - 2) {
+      scrollDirection = 'up';
+    }
+    lastScrollTop = st;
+
     if (!ticking) {
       requestAnimationFrame(() => {
         scrollTop = st;
@@ -454,15 +536,11 @@
                     }}
                     title="{photo.file_name} - Double-click to open"
                   >
-                    <!-- Thumbnail Image inside paper frame -->
-                    <div class="w-full h-full overflow-hidden bg-neutral-900 rounded-xs flex items-center justify-center">
-                      <img
-                        src={getThumbnailUrl(photo)}
-                        alt={photo.file_name}
-                        loading="lazy"
-                        class="w-full h-full object-cover group-hover:scale-103 transition-transform duration-150"
-                      />
-                    </div>
+                    <!-- Thumbnail Image inside paper frame with auto-retry and loading placeholder -->
+                    <PhotoThumbnail
+                      {photo}
+                      class="w-full h-full object-cover group-hover:scale-103 transition-transform duration-150"
+                    />
 
                     <!-- Top Right Favorite Star (Picasa style) -->
                     <button

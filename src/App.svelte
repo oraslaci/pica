@@ -134,18 +134,81 @@
     selectedPhotos = selectedPhotos.filter((p) => p.id !== photoId);
   }
 
+  function prioritizeFolderJump(folderId: number) {
+    const idx = filteredGroups.findIndex((g) => g.folder.id === folderId);
+    if (idx === -1) return;
+
+    const currentGroup = filteredGroups[idx];
+    if (currentGroup.photos.length === 0) return;
+
+    // 1. Immediately visible view photos (first ~36 photos of target folder)
+    const screenBatch = currentGroup.photos.slice(0, 36);
+
+    // 2. Previous and next 0.x part of screen (lookaround)
+    const forwardBatch = currentGroup.photos.slice(36, 96);
+    const prevGroup = idx > 0 ? filteredGroups[idx - 1] : null;
+    const backwardBatch = prevGroup ? prevGroup.photos.slice(-36).reverse() : [];
+    const nextGroup = idx < filteredGroups.length - 1 ? filteredGroups[idx + 1] : null;
+    const nextFolderBatch = nextGroup ? nextGroup.photos.slice(0, 36) : [];
+    const nearBatch = [...forwardBatch, ...backwardBatch, ...nextFolderBatch];
+
+    const screenHashes = screenBatch.map((p) => p.file_hash);
+    const nearHashes: string[] = [];
+    const seen = new Set<string>(screenHashes);
+    for (const p of nearBatch) {
+      if (!seen.has(p.file_hash)) {
+        seen.add(p.file_hash);
+        nearHashes.push(p.file_hash);
+      }
+    }
+
+    if (screenHashes.length > 0 || nearHashes.length > 0) {
+      setThumbnailPriority(screenHashes, nearHashes);
+    }
+  }
+
+  function prioritizeTopJump() {
+    if (filteredGroups.length === 0) return;
+    const firstGroup = filteredGroups[0];
+    if (firstGroup.photos.length === 0) return;
+
+    const screenBatch = firstGroup.photos.slice(0, 36);
+    const forwardBatch = firstGroup.photos.slice(36, 96);
+    const nextGroup = filteredGroups.length > 1 ? filteredGroups[1] : null;
+    const nextFolderBatch = nextGroup ? nextGroup.photos.slice(0, 36) : [];
+    const nearBatch = [...forwardBatch, ...nextFolderBatch];
+
+    const screenHashes = screenBatch.map((p) => p.file_hash);
+    const nearHashes: string[] = [];
+    const seen = new Set<string>(screenHashes);
+    for (const p of nearBatch) {
+      if (!seen.has(p.file_hash)) {
+        seen.add(p.file_hash);
+        nearHashes.push(p.file_hash);
+      }
+    }
+
+    if (screenHashes.length > 0 || nearHashes.length > 0) {
+      setThumbnailPriority(screenHashes, nearHashes);
+    }
+  }
+
   function handleSelectFolder(folderId: number | null) {
     activeFolderId = folderId;
     if (folderId !== null) {
-      const group = folderGroups.find((g) => g.folder.id === folderId);
-      if (group && group.photos.length > 0) {
-        // Preempt high-priority queue immediately with the clicked folder's photos
-        const targetHashes = group.photos.map((p) => p.file_hash);
-        setThumbnailPriority(targetHashes, true);
-      }
+      prioritizeFolderJump(folderId);
       const el = document.getElementById(`folder-${folderId}`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else {
+      prioritizeTopJump();
+      if (filteredGroups.length > 0) {
+        const firstFolderId = filteredGroups[0].folder.id;
+        const el = document.getElementById(`folder-${firstFolderId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
       }
     }
   }

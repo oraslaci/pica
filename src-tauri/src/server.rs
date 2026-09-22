@@ -31,8 +31,10 @@ struct ToggleFavReq {
 
 #[derive(Deserialize)]
 struct PriorityThumbsReq {
-    hashes: Vec<String>,
-    replace: Option<bool>,
+    hashes: Option<Vec<String>>,
+    screen: Option<Vec<String>>,
+    near: Option<Vec<String>>,
+    _replace: Option<bool>,
 }
 
 pub fn start_http_server(state: AppState, port: u16) {
@@ -211,14 +213,58 @@ fn handle_request(
         let mut body = String::new();
         let _ = request.as_reader().read_to_string(&mut body);
         if let Ok(req) = serde_json::from_str::<PriorityThumbsReq>(&body) {
-            let replace = req.replace.unwrap_or(true);
-            state.scheduler.set_high_priority_hashes(req.hashes, replace);
+            let screen = req.screen.unwrap_or_else(|| req.hashes.unwrap_or_default());
+            let near = req.near.unwrap_or_default();
+            state.scheduler.set_view_priority(screen, near);
             return Response::from_string(r#"{"status":"priority_updated"}"#)
                 .with_header(cors_header)
                 .with_header(json_header);
         }
         return Response::from_string(r#"{"error":"Invalid request"}"#)
             .with_status_code(StatusCode(400))
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // GET /api/debug/thumb-stats — count cached thumbnails and return cache size
+    if url == "/api/debug/thumb-stats" && method == &Method::Get {
+        let cache_dir = state.thumbnailer.cache_dir.clone();
+        let (count, total_bytes) = if let Ok(entries) = fs::read_dir(&cache_dir) {
+            entries
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.path().extension().map(|x| x == "jpg").unwrap_or(false)
+                })
+                .fold((0u64, 0u64), |(c, b), e| {
+                    let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+                    (c + 1, b + size)
+                })
+        } else {
+            (0, 0)
+        };
+        let json = format!(r#"{{"cached_thumbs":{},"total_bytes":{}}}"#, count, total_bytes);
+        return Response::from_string(json)
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/debug/clear-thumbs — delete all cached thumbnail files
+    if url == "/api/debug/clear-thumbs" && method == &Method::Post {
+        state.scheduler.clear_all_jobs();
+        let cache_dir = state.thumbnailer.cache_dir.clone();
+        let mut deleted = 0u64;
+        if let Ok(entries) = fs::read_dir(&cache_dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let p = entry.path();
+                if p.extension().map(|x| x == "jpg").unwrap_or(false) {
+                    if fs::remove_file(&p).is_ok() {
+                        deleted += 1;
+                    }
+                }
+            }
+        }
+        let json = format!(r#"{{"status":"ok","deleted":{}}}"#, deleted);
+        return Response::from_string(json)
             .with_header(cors_header)
             .with_header(json_header);
     }
@@ -276,36 +322,31 @@ fn handle_request(
         }
     }
 
-    // GET /thumb/{hash}
+    // GET /thumb/{hash} (with optional ?r=1 cachebusters)
     if url.starts_with("/thumb/") {
-        let hash = url.trim_start_matches("/thumb/");
+        let path_and_query = url.trim_start_matches("/thumb/");
+        let hash = path_and_query.split('?').next().unwrap_or(path_and_query);
         let thumb_path = state.thumbnailer.get_thumbnail_path(hash);
-        let final_path = if thumb_path.exists() {
-            Some(thumb_path)
-        } else if let Ok(Some(source_path_str)) = state.db.get_photo_path_by_hash(hash) {
-            let source_path = PathBuf::from(&source_path_str);
-            if source_path.exists() {
-                state.thumbnailer.generate_thumbnail(&source_path, hash, 384).ok()
-            } else {
-                None
-            }
-        } else {
-            None
-        };
 
-        if let Some(p) = final_path {
-            if let Ok(bytes) = fs::read(&p) {
+        if thumb_path.exists() {
+            if let Ok(bytes) = fs::read(&thumb_path) {
                 let img_header = Header::from_bytes(&b"Content-Type"[..], &b"image/jpeg"[..]).unwrap();
-                let cache_header = Header::from_bytes(&b"Cache-Control"[..], &b"public, max-age=31536000"[..]).unwrap();
+                let cache_header = Header::from_bytes(&b"Cache-Control"[..], &b"public, max-age=31536000, immutable"[..]).unwrap();
                 return Response::from_data(bytes)
                     .with_header(cors_header)
                     .with_header(img_header)
                     .with_header(cache_header);
             }
         }
+
+        // If thumbnail does not exist yet, ensure it is queued in high-priority without wiping queue
+        state.scheduler.set_high_priority_hashes(vec![hash.to_string()], false);
+
+        let no_cache_header = Header::from_bytes(&b"Cache-Control"[..], &b"no-cache, no-store, must-revalidate"[..]).unwrap();
         return Response::from_string("")
             .with_status_code(StatusCode(404))
-            .with_header(cors_header);
+            .with_header(cors_header)
+            .with_header(no_cache_header);
     }
 
     // GET /photo?path={encoded}

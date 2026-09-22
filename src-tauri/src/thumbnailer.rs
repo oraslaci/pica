@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
@@ -33,7 +33,7 @@ fn compute_thumb_dimensions(w: u32, h: u32, target_size: u32) -> (u32, u32) {
 }
 
 pub struct ThumbnailManager {
-    cache_dir: PathBuf,
+    pub cache_dir: PathBuf,
 }
 
 impl ThumbnailManager {
@@ -129,17 +129,107 @@ pub struct ThumbnailJob {
 }
 
 struct QueueState {
-    high_priority: VecDeque<ThumbnailJob>,
-    low_priority: VecDeque<ThumbnailJob>,
-    enqueued_hashes: HashSet<String>,
+    /// All pending thumbnail jobs that are not yet active or completed.
+    /// Keyed by file_hash for O(1) lookups and removals.
+    pending_jobs: HashMap<String, ThumbnailJob>,
+    /// Chronological list of pending hashes (for "the rest" / background processing)
+    pending_order: VecDeque<String>,
+    /// Hashes currently visible on screen (Tier 1: top priority)
+    screen_hashes: Vec<String>,
+    /// Hashes in previous and next 0.x screen (Tier 2: lookaround priority)
+    near_hashes: Vec<String>,
+    /// Hashes currently being actively processed by worker threads (no duplicates)
     active_hashes: HashSet<String>,
+}
+
+fn pop_next_job(
+    q: &mut QueueState,
+    manager: &ThumbnailManager,
+    db: &Option<DbManager>,
+) -> Option<ThumbnailJob> {
+    // 1. Tier 1: First item with no thumb and no thumb job from the screen
+    for hash in &q.screen_hashes {
+        if q.active_hashes.contains(hash) || manager.has_thumbnail(hash) {
+            continue;
+        }
+        if let Some(job) = q.pending_jobs.remove(hash) {
+            q.active_hashes.insert(hash.clone());
+            return Some(job);
+        }
+        if let Some(ref db_mgr) = db {
+            if let Ok(Some(source_path_str)) = db_mgr.get_photo_path_by_hash(hash) {
+                let source_path = PathBuf::from(source_path_str);
+                if source_path.exists() {
+                    q.active_hashes.insert(hash.clone());
+                    return Some(ThumbnailJob {
+                        source_path,
+                        file_hash: hash.clone(),
+                        target_size: DEFAULT_THUMBNAIL_SIZE,
+                    });
+                }
+            }
+        }
+    }
+
+    // 2. Tier 2: Next, items with no thumb and no thumb job from previous and next 0.x part of screen
+    for hash in &q.near_hashes {
+        if q.active_hashes.contains(hash) || manager.has_thumbnail(hash) {
+            continue;
+        }
+        if let Some(job) = q.pending_jobs.remove(hash) {
+            q.active_hashes.insert(hash.clone());
+            return Some(job);
+        }
+        if let Some(ref db_mgr) = db {
+            if let Ok(Some(source_path_str)) = db_mgr.get_photo_path_by_hash(hash) {
+                let source_path = PathBuf::from(source_path_str);
+                if source_path.exists() {
+                    q.active_hashes.insert(hash.clone());
+                    return Some(ThumbnailJob {
+                        source_path,
+                        file_hash: hash.clone(),
+                        target_size: DEFAULT_THUMBNAIL_SIZE,
+                    });
+                }
+            }
+        }
+    }
+
+    // 3. Tier 3: The rest (background pool)
+    while let Some(hash) = q.pending_order.pop_front() {
+        if q.active_hashes.contains(&hash) {
+            continue;
+        }
+        if manager.has_thumbnail(&hash) {
+            q.pending_jobs.remove(&hash);
+            continue;
+        }
+        if let Some(job) = q.pending_jobs.remove(&hash) {
+            q.active_hashes.insert(hash);
+            return Some(job);
+        }
+    }
+
+    // 4. Any leftover jobs in pending_jobs not in pending_order
+    let leftover = q.pending_jobs.keys().find(|h| {
+        !q.active_hashes.contains(*h) && !manager.has_thumbnail(*h)
+    }).cloned();
+
+    if let Some(hash) = leftover {
+        if let Some(job) = q.pending_jobs.remove(&hash) {
+            q.active_hashes.insert(hash);
+            return Some(job);
+        }
+    }
+
+    None
 }
 
 #[derive(Clone)]
 pub struct ThumbnailScheduler {
     pub manager: Arc<ThumbnailManager>,
     state: Arc<(Mutex<QueueState>, Condvar)>,
-    db: Option<DbManager>,
+    pub db: Option<DbManager>,
     shutdown: Arc<AtomicBool>,
 }
 
@@ -151,9 +241,10 @@ impl ThumbnailScheduler {
     ) -> Self {
         let state = Arc::new((
             Mutex::new(QueueState {
-                high_priority: VecDeque::new(),
-                low_priority: VecDeque::new(),
-                enqueued_hashes: HashSet::new(),
+                pending_jobs: HashMap::new(),
+                pending_order: VecDeque::new(),
+                screen_hashes: Vec::new(),
+                near_hashes: Vec::new(),
                 active_hashes: HashSet::new(),
             }),
             Condvar::new(),
@@ -163,6 +254,7 @@ impl ThumbnailScheduler {
         for _ in 0..num_workers {
             let state_clone = state.clone();
             let manager_clone = manager.clone();
+            let db_clone = db.clone();
             let shutdown_clone = shutdown.clone();
 
             thread::spawn(move || {
@@ -174,19 +266,10 @@ impl ThumbnailScheduler {
                             if shutdown_clone.load(Ordering::Relaxed) {
                                 return;
                             }
-                            // 1. High priority queue first
-                            if let Some(job) = q.high_priority.pop_front() {
-                                q.enqueued_hashes.remove(&job.file_hash);
-                                q.active_hashes.insert(job.file_hash.clone());
+                            if let Some(job) = pop_next_job(&mut q, &manager_clone, &db_clone) {
                                 break Some(job);
                             }
-                            // 2. Low priority queue only when high priority is empty
-                            if let Some(job) = q.low_priority.pop_front() {
-                                q.enqueued_hashes.remove(&job.file_hash);
-                                q.active_hashes.insert(job.file_hash.clone());
-                                break Some(job);
-                            }
-                            // 3. Both queues empty -> sleep on condvar
+                            // Both screen, near, and background empty -> sleep
                             q = cvar.wait(q).unwrap();
                         }
                     };
@@ -202,6 +285,8 @@ impl ThumbnailScheduler {
 
                         let mut q = lock.lock().unwrap();
                         q.active_hashes.remove(&job.file_hash);
+                        // Wake up waiting worker if there are more jobs
+                        cvar.notify_all();
                     }
                 }
             });
@@ -215,73 +300,71 @@ impl ThumbnailScheduler {
         }
     }
 
-    /// Set high-priority photos (e.g. current viewport).
-    /// If `replace` is true, previous unstarted high-priority jobs are cleared immediately.
-    pub fn set_high_priority_hashes(&self, hashes: Vec<String>, replace: bool) {
+    /// Set prioritized view: on-screen photos (Tier 1) and near-screen lookaround photos (Tier 2).
+    pub fn set_view_priority(&self, screen: Vec<String>, near: Vec<String>) {
         let (lock, cvar) = &*self.state;
         let mut q = lock.lock().unwrap();
-
-        if replace {
-            // Empties high priority queue immediately for the new view
-            while let Some(job) = q.high_priority.pop_front() {
-                q.enqueued_hashes.remove(&job.file_hash);
-            }
-        }
-
-        for hash in hashes {
-            if self.manager.has_thumbnail(&hash) {
-                continue;
-            }
-            if q.active_hashes.contains(&hash) || q.enqueued_hashes.contains(&hash) {
-                continue;
-            }
-
-            if let Some(ref db) = self.db {
-                if let Ok(Some(source_path_str)) = db.get_photo_path_by_hash(&hash) {
-                    let source_path = PathBuf::from(source_path_str);
-                    if source_path.exists() {
-                        q.enqueued_hashes.insert(hash.clone());
-                        q.high_priority.push_back(ThumbnailJob {
-                            source_path,
-                            file_hash: hash,
-                            target_size: DEFAULT_THUMBNAIL_SIZE,
-                        });
-                    }
-                }
-            }
-        }
-
+        q.screen_hashes = screen;
+        q.near_hashes = near;
         cvar.notify_all();
     }
 
-    /// Enqueue background batch of photos into the low-priority queue.
+    /// Set high-priority photos (backwards-compatible wrapper).
+    pub fn set_high_priority_hashes(&self, hashes: Vec<String>, replace: bool) {
+        let (lock, cvar) = &*self.state;
+        let mut q = lock.lock().unwrap();
+        if replace {
+            q.screen_hashes = hashes;
+            q.near_hashes.clear();
+        } else {
+            for h in hashes {
+                if !q.screen_hashes.contains(&h) {
+                    q.screen_hashes.push(h);
+                }
+            }
+        }
+        cvar.notify_all();
+    }
+
+    /// Enqueue discovered photos into the background queue (Tier 3: "the rest").
     pub fn enqueue_low_priority(&self, items: Vec<(PathBuf, String)>) {
         let (lock, cvar) = &*self.state;
         let mut q = lock.lock().unwrap();
 
         for (source_path, file_hash) in items {
-            if self.manager.has_thumbnail(&file_hash) {
-                continue;
-            }
-            if q.active_hashes.contains(&file_hash) || q.enqueued_hashes.contains(&file_hash) {
+            if self.manager.has_thumbnail(&file_hash) || q.pending_jobs.contains_key(&file_hash) {
                 continue;
             }
 
-            q.enqueued_hashes.insert(file_hash.clone());
-            q.low_priority.push_back(ThumbnailJob {
-                source_path,
-                file_hash,
-                target_size: DEFAULT_THUMBNAIL_SIZE,
-            });
+            q.pending_order.push_back(file_hash.clone());
+            q.pending_jobs.insert(
+                file_hash.clone(),
+                ThumbnailJob {
+                    source_path,
+                    file_hash,
+                    target_size: DEFAULT_THUMBNAIL_SIZE,
+                },
+            );
         }
 
+        cvar.notify_all();
+    }
+
+    /// Reset all queue state (e.g. on debug cache clear)
+    pub fn clear_all_jobs(&self) {
+        let (lock, cvar) = &*self.state;
+        let mut q = lock.lock().unwrap();
+        q.pending_jobs.clear();
+        q.pending_order.clear();
+        q.screen_hashes.clear();
+        q.near_hashes.clear();
         cvar.notify_all();
     }
 
     pub fn get_queue_lengths(&self) -> (usize, usize) {
         let (lock, _) = &*self.state;
         let q = lock.lock().unwrap();
-        (q.high_priority.len(), q.low_priority.len())
+        (q.active_hashes.len(), q.pending_jobs.len())
     }
 }
 

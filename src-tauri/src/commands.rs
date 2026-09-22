@@ -133,11 +133,15 @@ pub async fn trigger_scan(
 
 #[tauri::command]
 pub fn set_thumbnail_priority(
-    hashes: Vec<String>,
-    replace: bool,
+    screen: Option<Vec<String>>,
+    near: Option<Vec<String>>,
+    hashes: Option<Vec<String>>,
+    _replace: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    state.scheduler.set_high_priority_hashes(hashes, replace);
+    let screen = screen.unwrap_or_else(|| hashes.unwrap_or_default());
+    let near = near.unwrap_or_default();
+    state.scheduler.set_view_priority(screen, near);
     Ok(())
 }
 

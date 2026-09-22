@@ -79,11 +79,19 @@ export async function triggerScan(): Promise<void> {
   });
 }
 
-export async function setThumbnailPriority(hashes: string[], replace = true): Promise<void> {
-  if (hashes.length === 0 && !replace) return;
+export async function setThumbnailPriority(
+  screenHashes: string[],
+  nearHashes: string[] = []
+): Promise<void> {
+  if (screenHashes.length === 0 && nearHashes.length === 0) return;
   if (isTauri) {
     try {
-      return await invoke('set_thumbnail_priority', { hashes, replace });
+      return await invoke('set_thumbnail_priority', {
+        screen: screenHashes,
+        near: nearHashes,
+        hashes: screenHashes,
+        replace: true,
+      });
     } catch {
       // Fallback
     }
@@ -91,8 +99,37 @@ export async function setThumbnailPriority(hashes: string[], replace = true): Pr
   await fetch(`${SERVER_URL}/api/thumbs/priority`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hashes, replace }),
+    body: JSON.stringify({
+      screen: screenHashes,
+      near: nearHashes,
+      hashes: screenHashes,
+      replace: true,
+    }),
   });
+}
+
+export async function clearThumbnailCache(): Promise<{ deleted: number }> {
+  if (isTauri) {
+    try {
+      return await invoke<{ deleted: number }>('debug_clear_thumbs');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/debug/clear-thumbs`, { method: 'POST' });
+  return res.ok ? await res.json() : { deleted: 0 };
+}
+
+export async function getThumbStats(): Promise<{ cached_thumbs: number; total_bytes: number }> {
+  if (isTauri) {
+    try {
+      return await invoke<{ cached_thumbs: number; total_bytes: number }>('debug_thumb_stats');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/debug/thumb-stats`);
+  return res.ok ? await res.json() : { cached_thumbs: 0, total_bytes: 0 };
 }
 
 export async function getFoldersWithPhotos(): Promise<FolderWithPhotos[]> {

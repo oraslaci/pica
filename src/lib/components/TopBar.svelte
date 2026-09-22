@@ -8,7 +8,11 @@
     Sun,
     Moon,
     DownloadCloud,
+    Bug,
+    Trash2,
+    BarChart2,
   } from '@lucide/svelte';
+  import { clearThumbnailCache, getThumbStats } from '../api';
 
   let {
     searchQuery = $bindable(''),
@@ -35,6 +39,47 @@
         document.documentElement.classList.remove('light');
       }
       localStorage.setItem('pica_theme', theme);
+    }
+  }
+
+  // Debug menu state
+  let debugOpen = $state(false);
+  let debugMsg = $state('');
+  let thumbStats = $state<{ cached_thumbs: number; total_bytes: number } | null>(null);
+  let isBusy = $state(false);
+
+  async function loadThumbStats() {
+    thumbStats = await getThumbStats();
+  }
+
+  function toggleDebug() {
+    debugOpen = !debugOpen;
+    if (debugOpen) {
+      debugMsg = '';
+      loadThumbStats();
+    }
+  }
+
+  function formatBytes(b: number) {
+    if (b === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(b) / Math.log(k));
+    return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  async function handleClearThumbs() {
+    if (isBusy) return;
+    isBusy = true;
+    debugMsg = 'Clearing…';
+    try {
+      const result = await clearThumbnailCache();
+      debugMsg = `✅ Deleted ${result.deleted} thumbnails`;
+      await loadThumbStats();
+    } catch (e) {
+      debugMsg = `❌ Error: ${e}`;
+    } finally {
+      isBusy = false;
     }
   }
 </script>
@@ -139,8 +184,91 @@
     </div>
   </div>
 
-  <!-- Right Actions: Theme Toggle, Refresh, Folder Manager -->
+  <!-- Right Actions: Debug, Theme Toggle, Refresh, Folder Manager -->
   <div class="flex items-center gap-2">
+    <!-- Debug Menu -->
+    <div class="relative">
+      <button
+        onclick={toggleDebug}
+        class="p-1.5 rounded border transition-colors flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 {debugOpen ? 'bg-amber-500/20 border-amber-500/50' : ''}"
+        style="
+          background-color: {debugOpen ? '' : 'var(--panel-bg)'};
+          border-color: {debugOpen ? '' : 'var(--border-subtle)'};
+          color: var(--text-main);
+        "
+        title="Debug Tools"
+      >
+        <Bug class="w-3.5 h-3.5 {debugOpen ? 'text-amber-400' : ''}" />
+      </button>
+
+      {#if debugOpen}
+        <!-- Click-outside overlay -->
+        <button
+          class="fixed inset-0 z-40"
+          onclick={() => (debugOpen = false)}
+          tabindex="-1"
+          aria-label="Close debug menu"
+        ></button>
+
+        <!-- Dropdown Panel -->
+        <div
+          class="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-lg shadow-2xl border text-xs"
+          style="background-color: var(--panel-bg); border-color: var(--border-subtle); color: var(--text-main);"
+        >
+          <!-- Header -->
+          <div class="px-3 py-2.5 border-b flex items-center gap-2" style="border-color: var(--border-subtle);">
+            <Bug class="w-3.5 h-3.5 text-amber-400" />
+            <span class="font-bold text-amber-400 tracking-wide uppercase text-[10px]">Debug Tools</span>
+          </div>
+
+          <!-- Thumb Stats -->
+          <div class="px-3 py-3 border-b space-y-1.5" style="border-color: var(--border-subtle);">
+            <div class="flex items-center gap-1.5 mb-2" style="color: var(--text-dim);">
+              <BarChart2 class="w-3 h-3" />
+              <span class="font-semibold uppercase tracking-wider text-[10px]">Thumbnail Cache</span>
+            </div>
+            {#if thumbStats}
+              <div class="flex justify-between" style="color: var(--text-muted);">
+                <span>Cached thumbnails</span>
+                <span class="font-mono font-semibold" style="color: var(--text-main);">{thumbStats.cached_thumbs.toLocaleString()}</span>
+              </div>
+              <div class="flex justify-between" style="color: var(--text-muted);">
+                <span>Cache size on disk</span>
+                <span class="font-mono font-semibold" style="color: var(--text-main);">{formatBytes(thumbStats.total_bytes)}</span>
+              </div>
+            {:else}
+              <div style="color: var(--text-dim);">Loading stats…</div>
+            {/if}
+          </div>
+
+          <!-- Actions -->
+          <div class="px-3 py-3 space-y-2">
+            <button
+              onclick={handleClearThumbs}
+              disabled={isBusy}
+              class="w-full flex items-center gap-2 px-3 py-2 rounded-md border transition-colors text-left
+                {isBusy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-500/10 hover:border-red-500/40'}"
+              style="border-color: var(--border-subtle);"
+            >
+              <Trash2 class="w-3.5 h-3.5 text-red-400 shrink-0" />
+              <div>
+                <div class="font-semibold text-red-400">Clear Thumbnail Cache</div>
+                <div class="text-[10px] mt-0.5" style="color: var(--text-dim);">
+                  Deletes all cached .jpg thumbs — lets you watch the queue prioritization in action from a fresh state.
+                </div>
+              </div>
+            </button>
+
+            {#if debugMsg}
+              <div class="px-2 py-1.5 rounded text-[11px] font-medium" style="background-color: var(--canvas-bg); color: var(--text-muted);">
+                {debugMsg}
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
+
     <!-- Theme Switch (Dark / Light) -->
     <button
       onclick={toggleTheme}
