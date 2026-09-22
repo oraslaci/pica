@@ -50,6 +50,21 @@ pub fn start_http_server(state: AppState, port: u16) {
         }
     };
 
+    let ready_history = Arc::new(std::sync::Mutex::new((
+        0u64,
+        std::collections::VecDeque::<(u64, String)>::new(),
+    )));
+    let ready_history_cb = ready_history.clone();
+    state.scheduler.add_ready_callback(move |hash| {
+        let mut lock = ready_history_cb.lock().unwrap();
+        lock.0 += 1;
+        let seq = lock.0;
+        lock.1.push_back((seq, hash.to_string()));
+        if lock.1.len() > 1000 {
+            lock.1.pop_front();
+        }
+    });
+
     let worker_count = thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
@@ -58,6 +73,7 @@ pub fn start_http_server(state: AppState, port: u16) {
     for _ in 0..worker_count {
         let server = server.clone();
         let state = state.clone();
+        let ready_history = ready_history.clone();
         thread::spawn(move || {
             while let Ok(mut request) = server.recv() {
                 let url = request.url().to_string();
@@ -73,7 +89,7 @@ pub fn start_http_server(state: AppState, port: u16) {
                     continue;
                 }
 
-                let response = handle_request(&mut request, &state, &url, &method);
+                let response = handle_request(&mut request, &state, &url, &method, &ready_history);
                 let _ = request.respond(response);
             }
         });
@@ -85,9 +101,36 @@ fn handle_request(
     state: &AppState,
     url: &str,
     method: &Method,
+    ready_history: &Arc<std::sync::Mutex<(u64, std::collections::VecDeque<(u64, String)>)>>,
 ) -> Response<Cursor<Vec<u8>>> {
     let cors_header = Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap();
     let json_header = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+
+    // GET /api/thumbs/ready?since=<seq>
+    if url.starts_with("/api/thumbs/ready") && method == &Method::Get {
+        let mut since_seq: u64 = 0;
+        if let Some(pos) = url.find("since=") {
+            let s = &url[pos + 6..];
+            let s = s.split('&').next().unwrap_or(s);
+            since_seq = s.parse().unwrap_or(0);
+        }
+
+        let lock = ready_history.lock().unwrap();
+        let cur_seq = lock.0;
+        let mut ready = Vec::new();
+        for (seq, hash) in &lock.1 {
+            if *seq > since_seq {
+                ready.push(hash.clone());
+            }
+        }
+        let json = serde_json::json!({
+            "seq": cur_seq,
+            "hashes": ready,
+        });
+        return Response::from_string(json.to_string())
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
 
     // Health check
     if url == "/api/health" && method == &Method::Get {
@@ -339,9 +382,7 @@ fn handle_request(
             }
         }
 
-        // If thumbnail does not exist yet, ensure it is queued in high-priority without wiping queue
-        state.scheduler.set_high_priority_hashes(vec![hash.to_string()], false);
-
+        // Return 404 immediately; view priority is governed in batches by the viewport
         let no_cache_header = Header::from_bytes(&b"Cache-Control"[..], &b"no-cache, no-store, must-revalidate"[..]).unwrap();
         return Response::from_string("")
             .with_status_code(StatusCode(404))

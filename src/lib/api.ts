@@ -230,3 +230,76 @@ export function onScanComplete(callback: () => void) {
     callback();
   });
 }
+
+const hashListeners = new Map<string, Set<() => void>>();
+let totalListeners = 0;
+let listeningTauri = false;
+let pollingTimer: ReturnType<typeof setInterval> | null = null;
+let lastSeq = 0;
+
+export function onThumbnailReady(hash: string, callback: () => void): () => void {
+  let set = hashListeners.get(hash);
+  if (!set) {
+    set = new Set();
+    hashListeners.set(hash, set);
+  }
+  set.add(callback);
+  totalListeners++;
+
+  initThumbnailNotifications();
+
+  return () => {
+    const s = hashListeners.get(hash);
+    if (s) {
+      s.delete(callback);
+      if (s.size === 0) {
+        hashListeners.delete(hash);
+      }
+    }
+    totalListeners--;
+  };
+}
+
+function notifyThumbnailReady(hash: string) {
+  const set = hashListeners.get(hash);
+  if (set) {
+    for (const cb of set) {
+      cb();
+    }
+  }
+}
+
+async function initThumbnailNotifications() {
+  if (isTauri && !listeningTauri) {
+    listeningTauri = true;
+    try {
+      await listen<string>('thumbnail-ready', (event) => {
+        notifyThumbnailReady(event.payload);
+      });
+      return;
+    } catch {
+      // Fall back to server polling
+    }
+  }
+
+  if (!pollingTimer && typeof window !== 'undefined') {
+    pollingTimer = setInterval(async () => {
+      if (totalListeners === 0) return;
+      try {
+        const res = await fetch(`${SERVER_URL}/api/thumbs/ready?since=${lastSeq}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.seq !== undefined) lastSeq = data.seq;
+          if (Array.isArray(data.hashes)) {
+            for (const h of data.hashes) {
+              notifyThumbnailReady(h);
+            }
+          }
+        }
+      } catch {
+        // server idle
+      }
+    }, 150);
+  }
+}
+

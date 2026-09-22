@@ -9,6 +9,7 @@ use std::fs;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tauri::http::{header, Response, StatusCode};
+use tauri::Emitter;
 
 use commands::AppState;
 use db::DbManager;
@@ -178,7 +179,13 @@ pub fn run() {
             commands::get_library_stats,
             commands::set_thumbnail_priority,
         ])
-        .setup(|_app| Ok(()))
+        .setup(move |app| {
+            let handle = app.handle().clone();
+            scheduler.add_ready_callback(move |hash| {
+                let _ = handle.emit("thumbnail-ready", hash);
+            });
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

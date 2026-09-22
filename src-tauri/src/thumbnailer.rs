@@ -59,6 +59,41 @@ impl ThumbnailManager {
         self.get_thumbnail_path(file_hash).exists()
     }
 
+    pub fn try_extract_exif_thumbnail(source_path: &Path) -> Option<Vec<u8>> {
+        let ext = source_path.extension()?.to_str()?.to_lowercase();
+        if ext != "jpg" && ext != "jpeg" {
+            return None;
+        }
+
+        let file = File::open(source_path).ok()?;
+        let mut bufreader = std::io::BufReader::with_capacity(64 * 1024, file);
+        let raw_exif = exif::get_exif_attr_from_jpeg(&mut bufreader).ok()?;
+        let parsed_exif = exif::Reader::new().read_raw(raw_exif.clone()).ok()?;
+
+        let offset_field = parsed_exif.get_field(exif::Tag::JPEGInterchangeFormat, exif::In::THUMBNAIL)?;
+        let length_field = parsed_exif.get_field(exif::Tag::JPEGInterchangeFormatLength, exif::In::THUMBNAIL)?;
+
+        let offset = match offset_field.value {
+            exif::Value::Long(ref v) => *v.first()? as usize,
+            exif::Value::Short(ref v) => *v.first()? as usize,
+            _ => return None,
+        };
+        let length = match length_field.value {
+            exif::Value::Long(ref v) => *v.first()? as usize,
+            exif::Value::Short(ref v) => *v.first()? as usize,
+            _ => return None,
+        };
+
+        if length > 1000 && offset + length <= raw_exif.len() {
+            let slice = &raw_exif[offset..offset + length];
+            if slice.len() >= 4 && slice[0] == 0xFF && slice[1] == 0xD8 && slice[2] == 0xFF {
+                return Some(slice.to_vec());
+            }
+        }
+
+        None
+    }
+
     pub fn generate_thumbnail(
         &self,
         source_path: &Path,
@@ -68,6 +103,20 @@ impl ThumbnailManager {
         let target_path = self.get_thumbnail_path(file_hash);
         if target_path.exists() {
             return Ok(target_path);
+        }
+
+        // Fast-path: extract embedded EXIF thumbnail in <1ms without full image decoding
+        if let Some(thumb_data) = Self::try_extract_exif_thumbnail(source_path) {
+            let now_nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            let temp_path = self.cache_dir.join(format!("{}.tmp.{}.{}", file_hash, std::process::id(), now_nanos));
+            if fs::write(&temp_path, &thumb_data).is_ok() {
+                if fs::rename(&temp_path, &target_path).is_ok() {
+                    return Ok(target_path);
+                }
+            }
         }
 
         let img = image::open(source_path)
@@ -126,6 +175,8 @@ pub struct ThumbnailJob {
     pub source_path: PathBuf,
     pub file_hash: String,
     pub target_size: u32,
+    pub epoch: u64,
+    pub is_priority: bool,
 }
 
 struct QueueState {
@@ -140,6 +191,8 @@ struct QueueState {
     near_hashes: Vec<String>,
     /// Hashes currently being actively processed by worker threads (no duplicates)
     active_hashes: HashSet<String>,
+    /// Viewport epoch to preempt stale off-screen priority jobs
+    epoch: u64,
 }
 
 fn pop_next_job(
@@ -152,7 +205,9 @@ fn pop_next_job(
         if q.active_hashes.contains(hash) || manager.has_thumbnail(hash) {
             continue;
         }
-        if let Some(job) = q.pending_jobs.remove(hash) {
+        if let Some(mut job) = q.pending_jobs.remove(hash) {
+            job.epoch = q.epoch;
+            job.is_priority = true;
             q.active_hashes.insert(hash.clone());
             return Some(job);
         }
@@ -165,6 +220,8 @@ fn pop_next_job(
                         source_path,
                         file_hash: hash.clone(),
                         target_size: DEFAULT_THUMBNAIL_SIZE,
+                        epoch: q.epoch,
+                        is_priority: true,
                     });
                 }
             }
@@ -176,7 +233,9 @@ fn pop_next_job(
         if q.active_hashes.contains(hash) || manager.has_thumbnail(hash) {
             continue;
         }
-        if let Some(job) = q.pending_jobs.remove(hash) {
+        if let Some(mut job) = q.pending_jobs.remove(hash) {
+            job.epoch = q.epoch;
+            job.is_priority = true;
             q.active_hashes.insert(hash.clone());
             return Some(job);
         }
@@ -189,6 +248,8 @@ fn pop_next_job(
                         source_path,
                         file_hash: hash.clone(),
                         target_size: DEFAULT_THUMBNAIL_SIZE,
+                        epoch: q.epoch,
+                        is_priority: true,
                     });
                 }
             }
@@ -225,12 +286,15 @@ fn pop_next_job(
     None
 }
 
+pub type ReadyCallback = Arc<dyn Fn(&str) + Send + Sync>;
+
 #[derive(Clone)]
 pub struct ThumbnailScheduler {
     pub manager: Arc<ThumbnailManager>,
     state: Arc<(Mutex<QueueState>, Condvar)>,
     pub db: Option<DbManager>,
     shutdown: Arc<AtomicBool>,
+    ready_callbacks: Arc<Mutex<Vec<ReadyCallback>>>,
 }
 
 impl ThumbnailScheduler {
@@ -246,16 +310,19 @@ impl ThumbnailScheduler {
                 screen_hashes: Vec::new(),
                 near_hashes: Vec::new(),
                 active_hashes: HashSet::new(),
+                epoch: 0,
             }),
             Condvar::new(),
         ));
         let shutdown = Arc::new(AtomicBool::new(false));
+        let ready_callbacks: Arc<Mutex<Vec<ReadyCallback>>> = Arc::new(Mutex::new(Vec::new()));
 
         for _ in 0..num_workers {
             let state_clone = state.clone();
             let manager_clone = manager.clone();
             let db_clone = db.clone();
             let shutdown_clone = shutdown.clone();
+            let ready_callbacks_clone = ready_callbacks.clone();
 
             thread::spawn(move || {
                 let (lock, cvar) = &*state_clone;
@@ -275,12 +342,40 @@ impl ThumbnailScheduler {
                     };
 
                     if let Some(job) = job {
-                        if !manager_clone.has_thumbnail(&job.file_hash) {
-                            let _ = manager_clone.generate_thumbnail(
+                        // Cooperative cancellation: if this priority job belongs to an older epoch
+                        // and is no longer on screen or in near lookaround, discard it immediately.
+                        if job.is_priority {
+                            let (current_epoch, is_still_relevant) = {
+                                let q = lock.lock().unwrap();
+                                (
+                                    q.epoch,
+                                    q.screen_hashes.contains(&job.file_hash)
+                                        || q.near_hashes.contains(&job.file_hash),
+                                )
+                            };
+                            if job.epoch < current_epoch && !is_still_relevant {
+                                let mut q = lock.lock().unwrap();
+                                q.active_hashes.remove(&job.file_hash);
+                                cvar.notify_all();
+                                continue;
+                            }
+                        }
+
+                        let res = if !manager_clone.has_thumbnail(&job.file_hash) {
+                            manager_clone.generate_thumbnail(
                                 &job.source_path,
                                 &job.file_hash,
                                 job.target_size,
-                            );
+                            )
+                        } else {
+                            Ok(manager_clone.get_thumbnail_path(&job.file_hash))
+                        };
+
+                        if res.is_ok() {
+                            let cbs = ready_callbacks_clone.lock().unwrap().clone();
+                            for cb in cbs {
+                                cb(&job.file_hash);
+                            }
                         }
 
                         let mut q = lock.lock().unwrap();
@@ -297,6 +392,7 @@ impl ThumbnailScheduler {
             state,
             db,
             shutdown,
+            ready_callbacks,
         }
     }
 
@@ -304,6 +400,7 @@ impl ThumbnailScheduler {
     pub fn set_view_priority(&self, screen: Vec<String>, near: Vec<String>) {
         let (lock, cvar) = &*self.state;
         let mut q = lock.lock().unwrap();
+        q.epoch = q.epoch.wrapping_add(1);
         q.screen_hashes = screen;
         q.near_hashes = near;
         cvar.notify_all();
@@ -313,6 +410,7 @@ impl ThumbnailScheduler {
     pub fn set_high_priority_hashes(&self, hashes: Vec<String>, replace: bool) {
         let (lock, cvar) = &*self.state;
         let mut q = lock.lock().unwrap();
+        q.epoch = q.epoch.wrapping_add(1);
         if replace {
             q.screen_hashes = hashes;
             q.near_hashes.clear();
@@ -324,6 +422,15 @@ impl ThumbnailScheduler {
             }
         }
         cvar.notify_all();
+    }
+
+    /// Register a callback to be called when any thumbnail finishes generation.
+    pub fn add_ready_callback<F>(&self, cb: F)
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let mut lock = self.ready_callbacks.lock().unwrap();
+        lock.push(Arc::new(cb));
     }
 
     /// Enqueue discovered photos into the background queue (Tier 3: "the rest").
@@ -343,6 +450,8 @@ impl ThumbnailScheduler {
                     source_path,
                     file_hash,
                     target_size: DEFAULT_THUMBNAIL_SIZE,
+                    epoch: 0,
+                    is_priority: false,
                 },
             );
         }
@@ -422,6 +531,22 @@ mod tests {
             let thumb = thumb_manager.generate_thumbnail(&path, "testwebcam", 384);
             println!("Webcam thumb result: {:?}", thumb);
             assert!(thumb.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_exif_fast_path() {
+        let path = PathBuf::from("/home/pathfindr/Pictures/oraslaci/PXL_20220705_123809863.jpg");
+        if path.exists() {
+            let start = std::time::Instant::now();
+            let thumb_bytes = ThumbnailManager::try_extract_exif_thumbnail(&path);
+            let elapsed = start.elapsed();
+            println!("EXIF extraction took: {:?}", elapsed);
+            assert!(thumb_bytes.is_some(), "Should extract embedded EXIF thumbnail");
+            let bytes = thumb_bytes.unwrap();
+            assert!(bytes.len() > 1000);
+            assert_eq!(&bytes[0..3], &[0xFF, 0xD8, 0xFF]);
+            println!("Extracted {} bytes in {:?}", bytes.len(), elapsed);
         }
     }
 

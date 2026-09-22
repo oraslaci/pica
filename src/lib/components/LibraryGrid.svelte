@@ -102,7 +102,8 @@
   // Bidirectional virtual slice calculation
   const visibleFolderSlices = $derived.by(() => {
     const slices: Record<number, { photos: Photo[]; gridTopOffset: number }> = {};
-    const bufferPx = Math.max(600, containerHeight * 1.5);
+    // Bounded buffer: 2-3 rows above and below (250px - 500px max) to prevent DOM bloat on zoom out
+    const bufferPx = Math.min(500, Math.max(250, rowHeight * 2.5));
     const windowTop = Math.max(0, scrollTop - bufferPx);
     const windowBottom = scrollTop + containerHeight + bufferPx;
 
