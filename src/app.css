@@ -18,9 +18,9 @@
   --text-dim: #64748b;
   --tray-bg: #1c1c1e;
   --hud-bg: rgba(24, 24, 27, 0.88);
-  --scrollbar-track: #181818;
-  --scrollbar-thumb: #383838;
-  --scrollbar-hover: #4e4e4e;
+  --scrollbar-track: #131314;
+  --scrollbar-thumb: #444448;
+  --scrollbar-hover: #5a5a62;
   --photo-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
@@ -42,9 +42,9 @@ html.light {
   --text-dim: #80868b;
   --tray-bg: #e3e6e8;
   --hud-bg: rgba(255, 255, 255, 0.92);
-  --scrollbar-track: #e0e3e7;
-  --scrollbar-thumb: #bec2c7;
-  --scrollbar-hover: #a1a6ac;
+  --scrollbar-track: #e2e4e7;
+  --scrollbar-thumb: #aeb2b8;
+  --scrollbar-hover: #8f949b;
   --photo-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
 }
 
@@ -61,7 +61,14 @@ body {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-/* Custom sleek scrollbar */
+/* Hide any default scrollbar buttons across all scrollbars */
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Base custom scrollbar for modal/sidebar (8px) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -72,10 +79,22 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
+  background-color: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-hover);
+  background-color: var(--scrollbar-hover);
+}
+
+/* Photo Library Grid Scroller: hide native scrollbar (custom Picasa fast-scroll scrubber used) */
+.library-grid-scroller {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.library-grid-scroller::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }

@@ -7,6 +7,11 @@
     Play,
     Star,
     Image as ImageIcon,
+    RotateCcw,
+    RotateCw,
+    Check,
+    CheckSquare,
+    Loader2,
   } from '@lucide/svelte';
   import type { FolderWithPhotos, Photo } from '../types';
   import { getThumbnailUrl, setThumbnailPriority, toggleFavorite } from '../api';
@@ -19,6 +24,7 @@
     onPhotoSelected = (_photo: Photo, _index: number, _allPhotos: Photo[]) => {},
     onPhotoClick = (_photo: Photo, _isMulti: boolean) => {},
     onPlayFolder = (_photos: Photo[]) => {},
+    onSelectFolderPhotos = (_photos: Photo[]) => {},
   }: {
     folderGroups: FolderWithPhotos[];
     zoomSize: number;
@@ -26,9 +32,11 @@
     onPhotoSelected?: (photo: Photo, index: number, allPhotos: Photo[]) => void;
     onPhotoClick?: (photo: Photo, isMulti: boolean) => void;
     onPlayFolder?: (photos: Photo[]) => void;
+    onSelectFolderPhotos?: (photos: Photo[]) => void;
   } = $props();
 
   let collapsedFolders = $state<Record<number, boolean>>({});
+  let photoRotations = $state<Record<number, number>>({});
 
   // Container viewport dimensions
   let scrollContainer = $state<HTMLElement | null>(null);
@@ -184,18 +192,6 @@
   let lastScrollTop = $state(0);
   let scrollDirection = $state<'down' | 'up'>('down');
 
-  // Collect all photos currently in the visible window slice
-  const visiblePhotos = $derived.by(() => {
-    const list: Photo[] = [];
-    for (const group of folderGroups) {
-      const slice = visibleFolderSlices[group.folder.id];
-      if (slice && slice.photos.length > 0) {
-        list.push(...slice.photos);
-      }
-    }
-    return list;
-  });
-
   // Calculate photos within an arbitrary vertical range [rangeTop, rangeBottom] across all folders
   function getPhotosInRange(rangeTop: number, rangeBottom: number): Photo[] {
     if (rangeBottom <= rangeTop) return [];
@@ -228,6 +224,12 @@
 
   // Compute on-screen hashes and previous/next 0.x screen lookaround hashes
   const viewPriority = $derived.by(() => {
+    // If the user is actively scrubbing across thousands of photos,
+    // do not waste CPU cycles calculating lookaround batches for intermediate positions!
+    if (isDraggingScrubber) {
+      return { screenHashes: [], nearHashes: [] };
+    }
+
     // 1. Photos currently visible on the screen
     const onScreen = getPhotosInRange(scrollTop, scrollTop + containerHeight);
     const screenHashes: string[] = [];
@@ -241,23 +243,12 @@
     }
 
     // 2. Previous and next 0.7 part of the screen (lookaround)
-    const lookaroundDist = Math.max(containerHeight * 0.7, 500);
-    const nextPhotos = getPhotosInRange(
-      scrollTop + containerHeight,
-      scrollTop + containerHeight + lookaroundDist
-    );
-    const prevPhotos = getPhotosInRange(
-      Math.max(0, scrollTop - lookaroundDist),
-      scrollTop
-    ).reverse();
-
-    // Order lookaround by scroll direction
-    const lookaroundPhotos = scrollDirection === 'down'
-      ? [...nextPhotos, ...prevPhotos]
-      : [...prevPhotos, ...nextPhotos];
-
+    const lookaroundTop = Math.max(0, scrollTop - containerHeight * 0.7);
+    const lookaroundBottom = scrollTop + containerHeight * 1.7;
+    const nearPhotos = getPhotosInRange(lookaroundTop, lookaroundBottom);
     const nearHashes: string[] = [];
-    for (const p of lookaroundPhotos) {
+
+    for (const p of nearPhotos) {
       if (!seen.has(p.file_hash)) {
         seen.add(p.file_hash);
         nearHashes.push(p.file_hash);
@@ -267,6 +258,178 @@
     return { screenHashes, nearHashes };
   });
 
+  // Custom Picasa Fast-Scroll Scrubber state & geometry
+  let isDraggingScrubber = $state(false);
+  let isScrubberHovered = $state(false);
+  let grabOffsetY = 0;
+  let dragThumbTop = $state<number | null>(null);
+  let pendingScrollTop = 0;
+  let trackElement: HTMLElement | null = null;
+  let thumbElement: HTMLElement | null = null;
+  let badgeElement: HTMLElement | null = null;
+  let gridUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastGridUpdate = 0;
+
+  const totalContentHeight = $derived(
+    folderLayouts.reduce((sum, l) => sum + l.totalHeight, 0) + 32
+  );
+  const maxScroll = $derived(Math.max(1, totalContentHeight - containerHeight));
+  const trackHeight = $derived(Math.max(100, containerHeight));
+  const thumbHeight = $derived(
+    Math.max(
+      56,
+      Math.min(
+        trackHeight * 0.4,
+        (containerHeight / Math.max(containerHeight, totalContentHeight)) * trackHeight
+      )
+    )
+  );
+  const maxThumbTop = $derived(Math.max(1, trackHeight - thumbHeight));
+  const thumbTop = $derived(
+    Math.max(0, Math.min(maxThumbTop, (scrollTop / maxScroll) * maxThumbTop))
+  );
+  const currentThumbTop = $derived(dragThumbTop !== null ? dragThumbTop : thumbTop);
+
+  function getDateBadge(top: number): string {
+    if (folderLayouts.length === 0) return '';
+    for (const layout of folderLayouts) {
+      if (top >= layout.headerTop && top < layout.top + layout.totalHeight) {
+        if (top < layout.photosTop || layout.photos.length === 0) {
+          return layout.folder.display_name;
+        }
+        const row = Math.floor((top - layout.photosTop) / rowHeight);
+        const photoIdx = Math.min(layout.photos.length - 1, Math.max(0, row * columns));
+        const photo = layout.photos[photoIdx];
+        if (photo?.date_taken) {
+          const d = new Date(photo.date_taken);
+          const monthYear = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+          return `${layout.folder.display_name} • ${monthYear}`;
+        }
+        return layout.folder.display_name;
+      }
+    }
+    return folderLayouts[0]?.folder.display_name || '';
+  }
+
+  function getPhotoAtScroll(top: number): { photo: Photo; index: number; total: number } | null {
+    if (folderLayouts.length === 0) return null;
+    let globalIndex = 0;
+    const totalPhotos = folderLayouts.reduce((sum, l) => sum + l.photos.length, 0);
+
+    for (const layout of folderLayouts) {
+      if (top >= layout.headerTop && top < layout.top + layout.totalHeight) {
+        if (top < layout.photosTop || layout.photos.length === 0) {
+          const first = layout.photos[0];
+          return first ? { photo: first, index: globalIndex + 1, total: totalPhotos } : null;
+        }
+        const row = Math.floor((top - layout.photosTop) / rowHeight);
+        const photoIdx = Math.min(layout.photos.length - 1, Math.max(0, row * columns));
+        const photo = layout.photos[photoIdx];
+        return photo ? { photo, index: globalIndex + photoIdx + 1, total: totalPhotos } : null;
+      }
+      globalIndex += layout.photos.length;
+    }
+    const firstLayout = folderLayouts[0];
+    if (firstLayout && firstLayout.photos.length > 0) {
+      return { photo: firstLayout.photos[0], index: 1, total: totalPhotos };
+    }
+    return null;
+  }
+
+  let currentScrubPhoto = $state<{ photo: Photo; index: number; total: number } | null>(null);
+  const hoverScrubPhoto = $derived(getPhotoAtScroll(scrollTop));
+  const activeScrub = $derived(isDraggingScrubber ? currentScrubPhoto : (isScrubberHovered ? hoverScrubPhoto : null));
+
+  const currentDateBadge = $derived.by(() => {
+    const top = isDraggingScrubber ? pendingScrollTop : scrollTop;
+    return getDateBadge(top);
+  });
+
+  function scheduleGridUpdate() {
+    if (gridUpdateTimer) clearTimeout(gridUpdateTimer);
+    // Debounce virtual grid DOM mounting so dragging is buttery smooth at 120fps with zero mouse lag
+    gridUpdateTimer = setTimeout(() => {
+      gridUpdateTimer = null;
+      if (scrollContainer && isDraggingScrubber) {
+        scrollContainer.scrollTop = pendingScrollTop;
+        scrollTop = pendingScrollTop;
+      }
+    }, 100);
+  }
+
+  function handleThumbPointerDown(e: PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!thumbElement || !trackElement) return;
+    const thumbRect = thumbElement.getBoundingClientRect();
+    // Record where inside the thumb the user clicked
+    grabOffsetY = e.clientY - thumbRect.top;
+    isDraggingScrubber = true;
+    dragThumbTop = thumbTop;
+    pendingScrollTop = scrollTop;
+    currentScrubPhoto = getPhotoAtScroll(scrollTop);
+  }
+
+  function handleWindowPointerMove(e: PointerEvent) {
+    if (!isDraggingScrubber || !trackElement) return;
+    const trackRect = trackElement.getBoundingClientRect();
+    // Direct mathematical cursor tracking within the track
+    const targetThumbTop = e.clientY - trackRect.top - grabOffsetY;
+    const clampedThumbTop = Math.max(0, Math.min(maxThumbTop, targetThumbTop));
+
+    // 1. Direct synchronous DOM update (0ms latency, zero Svelte scheduling lag)
+    if (thumbElement) {
+      thumbElement.style.top = `${clampedThumbTop}px`;
+    }
+    dragThumbTop = clampedThumbTop;
+
+    // 2. Compute pending scroll position
+    const targetPct = maxThumbTop > 0 ? clampedThumbTop / maxThumbTop : 0;
+    pendingScrollTop = targetPct * maxScroll;
+
+    // 3. Update preview photo and floating date badge text directly
+    currentScrubPhoto = getPhotoAtScroll(pendingScrollTop);
+    if (badgeElement) {
+      badgeElement.textContent = getDateBadge(pendingScrollTop);
+    }
+
+    // 4. Throttle heavy grid DOM virtualization
+    scheduleGridUpdate();
+  }
+
+  function handleWindowPointerUp(e: PointerEvent) {
+    if (!isDraggingScrubber) return;
+    if (gridUpdateTimer) {
+      clearTimeout(gridUpdateTimer);
+      gridUpdateTimer = null;
+    }
+    if (scrollContainer) {
+      scrollContainer.scrollTop = pendingScrollTop;
+      scrollTop = pendingScrollTop;
+    }
+    dragThumbTop = null;
+    currentScrubPhoto = null;
+    isDraggingScrubber = false;
+  }
+
+  function handleTrackPointerDown(e: PointerEvent) {
+    if (e.target !== e.currentTarget || !scrollContainer || !trackElement) return;
+    e.preventDefault();
+    const rect = trackElement.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const targetThumbTop = Math.max(0, Math.min(maxThumbTop, clickY - thumbHeight / 2));
+    grabOffsetY = thumbHeight / 2;
+    isDraggingScrubber = true;
+    dragThumbTop = targetThumbTop;
+    const targetPct = maxThumbTop > 0 ? targetThumbTop / maxThumbTop : 0;
+    pendingScrollTop = targetPct * maxScroll;
+    currentScrubPhoto = getPhotoAtScroll(pendingScrollTop);
+    if (thumbElement) {
+      thumbElement.style.top = `${targetThumbTop}px`;
+    }
+    scheduleGridUpdate();
+  }
+
   // Notify backend of current screen and near-screen lookaround
   let priorityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
@@ -274,30 +437,42 @@
     if (screenHashes.length === 0 && nearHashes.length === 0) return;
 
     if (priorityDebounceTimer) clearTimeout(priorityDebounceTimer);
+    // When actively dragging scrubber, debounce by 250ms so UI stays 120fps smooth
+    // When normal scrolling, debounce by 80ms
+    const delay = isDraggingScrubber ? 250 : 80;
     priorityDebounceTimer = setTimeout(() => {
       setThumbnailPriority(screenHashes, nearHashes);
-    }, 40);
+    }, delay);
 
     return () => {
       if (priorityDebounceTimer) clearTimeout(priorityDebounceTimer);
     };
   });
 
-  // Scroll anchoring across window resizes & zoom size changes
-  let anchorFolderId: number | null = null;
+  // Scroll anchoring across window resizes & zoom size changes  // Zoom and resize anchor preservation
+  let anchorFolderId = $state<number | null>(null);
   let anchorPhotoIndex = 0;
+  let isHeaderAnchor = true;
   let prevColumns = 0;
 
   function captureAnchor() {
     if (!scrollContainer) return;
     const currentScroll = scrollContainer.scrollTop;
+    if (currentScroll <= 10) {
+      anchorFolderId = folderLayouts[0]?.folder.id ?? null;
+      anchorPhotoIndex = 0;
+      isHeaderAnchor = true;
+      return;
+    }
     for (const layout of folderLayouts) {
       if (layout.isCollapsed || layout.photos.length === 0) continue;
       if (currentScroll >= layout.headerTop && currentScroll < layout.top + layout.totalHeight) {
         anchorFolderId = layout.folder.id;
-        if (currentScroll <= layout.photosTop) {
+        if (currentScroll < layout.photosTop) {
           anchorPhotoIndex = 0;
+          isHeaderAnchor = true;
         } else {
+          isHeaderAnchor = false;
           const row = Math.floor((currentScroll - layout.photosTop) / rowHeight);
           anchorPhotoIndex = Math.min(layout.photos.length - 1, row * columns);
         }
@@ -311,18 +486,24 @@
     const targetLayout = folderLayouts.find((l) => l.folder.id === anchorFolderId);
     if (!targetLayout) return;
 
-    const targetRow = Math.floor(anchorPhotoIndex / columns);
-    const newTop = targetLayout.photosTop + targetRow * rowHeight;
+    let newTop: number;
+    if (isHeaderAnchor) {
+      newTop = targetLayout.headerTop;
+    } else {
+      const targetRow = Math.floor(anchorPhotoIndex / columns);
+      newTop = targetLayout.photosTop + targetRow * rowHeight;
+    }
     const maxScroll = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
     const clampedTop = Math.max(0, Math.min(newTop, maxScroll));
 
-    scrollContainer.scrollTop = clampedTop;
+    scrollContainer.scrollTo({ top: clampedTop, behavior: 'instant' });
     scrollTop = clampedTop;
   }
 
   // Effect to re-anchor when column count changes
   $effect(() => {
     if (columns !== prevColumns) {
+      captureAnchor();
       prevColumns = columns;
       requestAnimationFrame(() => {
         restoreAnchor();
@@ -362,6 +543,7 @@
 
   let ticking = false;
   function handleScroll(e: Event) {
+    if (isDraggingScrubber) return;
     const target = e.target as HTMLElement;
     const st = target.scrollTop;
     if (st > lastScrollTop + 2) {
@@ -374,7 +556,6 @@
     if (!ticking) {
       requestAnimationFrame(() => {
         scrollTop = st;
-        captureAnchor();
         ticking = false;
       });
       ticking = true;
@@ -403,6 +584,11 @@
     photo.is_favorite = newState;
   }
 
+  function handleRotateCard(e: MouseEvent, photo: Photo, deg: number) {
+    e.stopPropagation();
+    photoRotations[photo.id] = ((photoRotations[photo.id] || 0) + deg + 360) % 360;
+  }
+
   function formatDateRange(photos: Photo[]): string {
     if (photos.length === 0) return '';
     const dates = photos
@@ -424,16 +610,33 @@
   }
 </script>
 
-<svelte:window onresize={handleResize} />
+<svelte:window
+  onresize={handleResize}
+  onpointermove={handleWindowPointerMove}
+  onpointerup={handleWindowPointerUp}
+  onpointercancel={handleWindowPointerUp}
+/>
 
-<div
-  bind:this={scrollContainer}
-  bind:clientWidth={containerWidth}
-  bind:clientHeight={containerHeight}
-  onscroll={handleScroll}
-  class="flex-1 overflow-y-auto p-4 select-none transition-colors relative"
-  style="background-color: var(--canvas-bg);"
->
+<div class="relative flex-1 w-full h-full overflow-hidden flex flex-row">
+  <div
+    bind:this={scrollContainer}
+    bind:clientWidth={containerWidth}
+    bind:clientHeight={containerHeight}
+    onscroll={handleScroll}
+    id="library-grid-container"
+    class="flex-1 overflow-y-auto p-4 select-none transition-colors relative library-grid-scroller"
+    style="background-color: var(--canvas-bg);"
+  >
+  {#if isDraggingScrubber}
+    <!-- Floating Scrubbing Status Pill on the Left Side / Top Center of the Grid -->
+    <div class="sticky top-2 inset-x-0 z-40 flex items-center justify-center pointer-events-none mb-3">
+      <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-neutral-900/90 text-white text-xs font-semibold shadow-2xl border border-blue-500/40 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150">
+        <Loader2 class="w-3.5 h-3.5 animate-spin text-blue-400" />
+        <span class="text-neutral-200">Scrubbing to <strong class="text-amber-400">{currentDateBadge}</strong></span>
+      </div>
+    </div>
+  {/if}
+
   {#if folderGroups.length === 0}
     <div class="h-96 flex flex-col items-center justify-center text-sm" style="color: var(--text-dim);">
       <ImageIcon class="w-12 h-12 mb-3 opacity-30" />
@@ -489,15 +692,27 @@
             </div>
           </button>
 
-          <!-- Play Slideshow button -->
-          <button
-            onclick={() => onPlayFolder(layout.photos)}
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors shadow-xs"
-            title="Play Folder Slideshow"
-          >
-            <Play class="w-3 h-3 fill-current" />
-            <span>Play</span>
-          </button>
+          <!-- Folder Header Actions: Select All & Play -->
+          <div class="flex items-center gap-2">
+            <button
+              onclick={() => onSelectFolderPhotos(layout.photos)}
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-xs font-medium transition-colors"
+              style="color: var(--text-main);"
+              title="Select all photos in this folder"
+            >
+              <CheckSquare class="w-3.5 h-3.5 text-blue-400" />
+              <span class="hidden sm:inline">Select All</span>
+            </button>
+
+            <button
+              onclick={() => onPlayFolder(layout.photos)}
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors shadow-xs"
+              title="Play Folder Slideshow"
+            >
+              <Play class="w-3 h-3 fill-current" />
+              <span>Play</span>
+            </button>
+          </div>
         </div>
 
         <!-- Virtualized Photos Container with Invariant Height -->
@@ -523,7 +738,7 @@
                   <div
                     role="button"
                     tabindex="0"
-                    class="group relative aspect-square rounded-sm overflow-hidden p-1 transition-all cursor-pointer select-none {isSelected ? 'ring-3 ring-blue-500 shadow-md' : 'hover:ring-1 hover:ring-blue-400/50'}"
+                    class="group relative aspect-square rounded-sm overflow-hidden p-1 transition-[transform,box-shadow] duration-150 cursor-pointer select-none {isSelected ? 'ring-3 ring-blue-500 shadow-md -translate-y-0.5' : 'hover:ring-1 hover:ring-blue-400/50 hover:-translate-y-0.5 hover:shadow-lg'}"
                     style="
                       background-color: var(--card-bg);
                       border: 1px solid {isSelected ? 'var(--accent-picasa)' : 'var(--card-border)'};
@@ -537,37 +752,67 @@
                     }}
                     title="{photo.file_name} - Double-click to open"
                   >
-                    <!-- Thumbnail Image inside paper frame with auto-retry and loading placeholder -->
-                    <PhotoThumbnail
-                      {photo}
-                      class="w-full h-full object-cover group-hover:scale-103 transition-transform duration-150"
-                    />
+                    <!-- Thumbnail Image with rotation container -->
+                    <div
+                      class="w-full h-full overflow-hidden flex items-center justify-center transition-transform duration-200"
+                      style="transform: rotate({photoRotations[photo.id] || 0}deg);"
+                    >
+                      <PhotoThumbnail
+                        {photo}
+                        class="w-full h-full object-cover group-hover:scale-103 transition-transform duration-150"
+                      />
+                    </div>
+
+                    <!-- Top-Left Select Checkbox Button (Picasa style) -->
+                    <button
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        onPhotoClick(photo, true);
+                      }}
+                      class="absolute top-2 left-2 p-1 rounded backdrop-blur-xs transition-opacity z-10 {
+                        isSelected
+                          ? 'bg-blue-600 text-white opacity-100'
+                          : 'bg-black/50 text-white/80 opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white'
+                      }"
+                      title={isSelected ? 'Deselect photo' : 'Select photo'}
+                    >
+                      <Check class="w-3.5 h-3.5" />
+                    </button>
 
                     <!-- Top Right Favorite Star (Picasa style) -->
                     <button
                       onclick={(e) => handleToggleFav(e, photo)}
-                      class="absolute top-2 right-2 p-1 rounded-full backdrop-blur-xs transition-opacity {
+                      class="absolute top-2 right-2 p-1 rounded-full backdrop-blur-xs transition-opacity z-10 {
                         photo.is_favorite
                           ? 'bg-black/60 text-amber-400 opacity-100'
-                          : 'bg-black/40 text-white/80 opacity-0 group-hover:opacity-100 hover:text-amber-300'
+                          : 'bg-black/50 text-white/80 opacity-0 group-hover:opacity-100 hover:text-amber-300'
                       }"
                       title="Favorite (★)"
                     >
                       <Star class="w-3.5 h-3.5 {photo.is_favorite ? 'fill-amber-400' : ''}" />
                     </button>
 
-                    <!-- Selected Checkmark Badge (Bottom-Right) -->
-                    {#if isSelected}
-                      <div class="absolute bottom-2 right-2 bg-blue-600 text-white rounded-full p-0.5 shadow-sm">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    {/if}
+                    <!-- Bottom-Left Rotate CCW Button on hover (Picasa classic) -->
+                    <button
+                      onclick={(e) => handleRotateCard(e, photo, -90)}
+                      class="absolute bottom-2 left-2 p-1 rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title="Rotate Counter-Clockwise (-90°)"
+                    >
+                      <RotateCcw class="w-3.5 h-3.5" />
+                    </button>
+
+                    <!-- Bottom-Right Rotate CW Button on hover (Picasa classic) -->
+                    <button
+                      onclick={(e) => handleRotateCard(e, photo, 90)}
+                      class="absolute bottom-2 right-2 p-1 rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title="Rotate Clockwise (+90°)"
+                    >
+                      <RotateCw class="w-3.5 h-3.5" />
+                    </button>
 
                     <!-- Bottom Filename Gradient Overlay on hover -->
                     <div
-                      class="absolute inset-x-1 bottom-1 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-1.5 pt-4 text-[10px] text-white truncate opacity-0 group-hover:opacity-100 transition-opacity"
+                      class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-1 pt-4 text-[10px] text-white text-center truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none px-7"
                     >
                       {photo.file_name}
                     </div>
@@ -580,4 +825,84 @@
       </div>
     {/each}
   {/if}
+  </div>
+
+  <!-- Custom Picasa Fast-Scroll Scrubber Bar (20px wide, zero-lag pointer tracking) -->
+  <div
+    bind:this={trackElement}
+    role="presentation"
+    class="relative w-5 h-full shrink-0 flex items-center justify-center select-none cursor-pointer transition-colors"
+    style="
+      background-color: var(--scrollbar-track);
+      border-left: 1px solid var(--border-subtle);
+    "
+    onpointerdown={handleTrackPointerDown}
+    onmouseenter={() => (isScrubberHovered = true)}
+    onmouseleave={() => (isScrubberHovered = false)}
+  >
+    <!-- Scrubber Thumb -->
+    <div
+      bind:this={thumbElement}
+      role="scrollbar"
+      aria-label="Photo library scrollbar"
+      aria-valuenow={Math.round(scrollTop)}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(maxScroll)}
+      tabindex="0"
+      onpointerdown={handleThumbPointerDown}
+      class="absolute w-3.5 rounded-full cursor-grab active:cursor-grabbing transition-colors duration-100 flex items-center justify-center {
+        isDraggingScrubber
+          ? 'bg-blue-500 shadow-md ring-2 ring-blue-400/50'
+          : 'bg-neutral-500/80 hover:bg-neutral-400'
+      }"
+      style="
+        top: {currentThumbTop}px;
+        height: {thumbHeight}px;
+        touch-action: none;
+      "
+    >
+      <!-- Center grip ridges (classic Picasa aesthetic) -->
+      <div class="flex flex-col items-center justify-center gap-1 opacity-60 pointer-events-none">
+        <span class="w-1.5 h-0.5 bg-white rounded-full"></span>
+        <span class="w-1.5 h-0.5 bg-white rounded-full"></span>
+        <span class="w-1.5 h-0.5 bg-white rounded-full"></span>
+      </div>
+
+      <!-- Floating Date / Folder Badge with Sliding Thumbnail Preview (Picasa style, visible while hovering or dragging) -->
+      {#if isDraggingScrubber || isScrubberHovered}
+        <div
+          class="absolute right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 p-2 rounded-xl bg-neutral-900/95 text-white shadow-2xl border border-white/20 backdrop-blur-md pointer-events-none select-none z-50 animate-in fade-in zoom-in-95 duration-100 min-w-32"
+        >
+          {#if activeScrub?.photo}
+            <!-- Sliding Thumbnail Preview (80x80) -->
+            <div class="relative w-20 h-20 rounded-lg overflow-hidden bg-neutral-800 border border-white/10 shadow-inner flex items-center justify-center shrink-0">
+              <div class="absolute inset-0 bg-neutral-800 flex items-center justify-center">
+                <Loader2 class="w-4 h-4 text-neutral-400 animate-spin" />
+              </div>
+              <img
+                src={getThumbnailUrl(activeScrub.photo)}
+                alt={activeScrub.photo.file_name}
+                class="relative w-full h-full object-cover transition-opacity duration-150"
+                onload={(e) => {
+                  (e.currentTarget as HTMLElement).style.opacity = '1';
+                }}
+                style="opacity: 0;"
+              />
+            </div>
+          {/if}
+
+          <div class="flex flex-col items-center text-center px-1">
+            <span bind:this={badgeElement} class="text-amber-400 font-bold text-xs whitespace-nowrap">
+              {currentDateBadge}
+            </span>
+            {#if activeScrub}
+              <span class="text-[10px] text-neutral-400 font-medium whitespace-nowrap mt-0.5">
+                Photo {activeScrub.index.toLocaleString()} of {activeScrub.total.toLocaleString()}
+              </span>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
 </div>

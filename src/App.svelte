@@ -323,6 +323,10 @@
         onPhotoSelected={handlePhotoSelected}
         onPhotoClick={handlePhotoClick}
         onPlayFolder={handlePlayFolder}
+        onSelectFolderPhotos={(photos) => {
+          selectedPhotos = photos;
+          isTrayHeld = true;
+        }}
       />
     </main>
   </div>

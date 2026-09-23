@@ -14,6 +14,9 @@
     Calendar,
     Camera,
     HardDrive,
+    Play,
+    Pause,
+    ArrowLeft,
   } from '@lucide/svelte';
   import type { Photo } from '../types';
   import { getFullImageUrl, toggleFavorite } from '../api';
@@ -35,10 +38,41 @@
   let isZoomed100 = $state(false);
   let showInfo = $state(false);
   let isFav = $state(false);
+  let isPlayingSlideshow = $state(false);
+  let slideshowTimer: ReturnType<typeof setInterval> | null = null;
 
   $effect(() => {
     activeIndex = currentIndex;
   });
+
+  $effect(() => {
+    if (isPlayingSlideshow && isOpen && photos.length > 1) {
+      slideshowTimer = setInterval(() => {
+        nextPhoto();
+      }, 3000);
+    } else {
+      if (slideshowTimer) {
+        clearInterval(slideshowTimer);
+        slideshowTimer = null;
+      }
+    }
+    return () => {
+      if (slideshowTimer) {
+        clearInterval(slideshowTimer);
+        slideshowTimer = null;
+      }
+    };
+  });
+
+  $effect(() => {
+    if (!isOpen) {
+      isPlayingSlideshow = false;
+    }
+  });
+
+  function toggleSlideshow() {
+    isPlayingSlideshow = !isPlayingSlideshow;
+  }
 
   const currentPhoto = $derived(photos[activeIndex] || null);
 
@@ -92,6 +126,8 @@
       handleToggleFav();
     } else if (e.key === 'r') {
       handleRotate(90);
+    } else if (e.key === 'p') {
+      toggleSlideshow();
     } else if (e.key === 'i') {
       showInfo = !showInfo;
     }
@@ -127,10 +163,22 @@
 
 {#if isOpen && currentPhoto}
   <div class="fixed inset-0 z-50 bg-[#0e0e0e] flex flex-col select-none overflow-hidden">
-    <!-- Top Bar: Photo title & Close button -->
+    <!-- Top Bar: Back button, photo title & Close button -->
     <div
-      class="absolute top-0 inset-x-0 z-20 h-12 bg-linear-to-b from-black/80 to-transparent flex items-center justify-between px-6 opacity-0 hover:opacity-100 transition-opacity duration-200"
+      class="absolute top-0 inset-x-0 z-20 h-14 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between px-6 opacity-0 hover:opacity-100 transition-opacity duration-200"
     >
+      <button
+        onclick={() => {
+          isOpen = false;
+          onClose();
+        }}
+        class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors text-xs font-medium backdrop-blur-xs cursor-pointer shadow-md"
+        title="Back to Library (Esc)"
+      >
+        <ArrowLeft class="w-4 h-4" />
+        <span>Library</span>
+      </button>
+
       <div class="text-xs font-medium text-neutral-300 truncate max-w-lg drop-shadow">
         {currentPhoto.file_name}
         <span class="text-neutral-500 ml-2">({activeIndex + 1} of {photos.length})</span>
@@ -141,8 +189,8 @@
           isOpen = false;
           onClose();
         }}
-        class="p-2 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/80 transition-colors drop-shadow"
-        title="Back to Library (Esc)"
+        class="p-2 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/80 transition-colors drop-shadow cursor-pointer"
+        title="Close (Esc)"
       >
         <X class="w-5 h-5" />
       </button>
@@ -289,6 +337,21 @@
           title="Next Photo (→)"
         >
           <ChevronRight class="w-4 h-4" />
+        </button>
+
+        <!-- Slideshow Play / Pause -->
+        <button
+          onclick={toggleSlideshow}
+          class={`p-2 rounded-full hover:bg-white/10 transition-colors ${
+            isPlayingSlideshow ? 'text-amber-400 bg-white/15' : 'hover:text-white'
+          }`}
+          title={isPlayingSlideshow ? 'Pause Slideshow (p)' : 'Play Slideshow (p)'}
+        >
+          {#if isPlayingSlideshow}
+            <Pause class="w-4 h-4 fill-current" />
+          {:else}
+            <Play class="w-4 h-4 fill-current" />
+          {/if}
         </button>
 
         <div class="w-px h-5 bg-neutral-700/60 mx-1"></div>
