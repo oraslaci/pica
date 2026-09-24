@@ -58,6 +58,7 @@ export interface EditSessionState {
   total_steps: number;
   cumulative_rotation: number;
   has_backup: boolean;
+  backup_path?: string | null;
   has_conflict: boolean;
   is_committed: boolean;
 }

@@ -210,6 +210,14 @@ export function getFullImageUrl(photo: Photo, cacheBuster?: string | number): st
   return `${SERVER_URL}/photo?path=${encodeURIComponent(photo.file_path)}${cb}`;
 }
 
+export function getOriginalImageUrl(photo: Photo, backupPath?: string | null): string {
+  const targetPath = backupPath || photo.file_path;
+  if (isTauri) {
+    return `pica://localhost/file?path=${encodeURIComponent(targetPath)}`;
+  }
+  return `${SERVER_URL}/photo?path=${encodeURIComponent(targetPath)}`;
+}
+
 export function onScanProgress(callback: (prog: ScanProgress) => void) {
   if (!isTauri) {
     // In browser mode, poll stats periodically

@@ -159,6 +159,12 @@ impl EditorManager {
         let backup_path = Self::get_backup_path(&target_path);
         let has_backup = backup_path.exists();
 
+        let backup_path_str = if has_backup {
+            Some(backup_path.to_string_lossy().to_string())
+        } else {
+            None
+        };
+
         // Check if there is a session for this photo
         let manifest = self.find_session_for_photo(&photo);
 
@@ -178,6 +184,7 @@ impl EditorManager {
                 total_steps: m.steps.len(),
                 cumulative_rotation,
                 has_backup,
+                backup_path: backup_path_str,
                 has_conflict,
                 is_committed: m.is_committed,
             })
@@ -192,6 +199,7 @@ impl EditorManager {
                 total_steps: 0,
                 cumulative_rotation: 0,
                 has_backup,
+                backup_path: backup_path_str,
                 has_conflict: false,
                 is_committed: false,
             })

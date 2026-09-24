@@ -99,6 +99,7 @@ pub struct EditSessionState {
     pub total_steps: usize,
     pub cumulative_rotation: i32,
     pub has_backup: bool,
+    pub backup_path: Option<String>,
     pub has_conflict: bool,
     pub is_committed: bool,
 }
