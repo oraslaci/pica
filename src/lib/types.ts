@@ -42,3 +42,30 @@ export interface LibraryStats {
   total_favorites: number;
   is_scanning: boolean;
 }
+
+export interface AppSettings {
+  original_handling: 'backup' | 'overwrite';
+  hide_originals: boolean;
+}
+
+export interface EditSessionState {
+  photo_id: number;
+  file_path: string;
+  has_session: boolean;
+  can_undo: boolean;
+  can_redo: boolean;
+  current_step: number;
+  total_steps: number;
+  cumulative_rotation: number;
+  has_backup: boolean;
+  has_conflict: boolean;
+  is_committed: boolean;
+}
+
+export interface EditResult {
+  success: boolean;
+  photo: Photo | null;
+  session_state: EditSessionState;
+  message: string | null;
+}
+

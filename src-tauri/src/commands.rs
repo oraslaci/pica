@@ -4,7 +4,10 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::db::DbManager;
-use crate::models::{Folder, FolderWithPhotos, LibraryStats, Photo};
+use crate::editor::EditorManager;
+use crate::models::{
+    AppSettings, EditResult, EditSessionState, Folder, FolderWithPhotos, LibraryStats, Photo,
+};
 use crate::scanner::Scanner;
 use crate::thumbnailer::{ThumbnailManager, ThumbnailScheduler};
 
@@ -14,6 +17,7 @@ pub struct AppState {
     pub thumbnailer: Arc<ThumbnailManager>,
     pub scheduler: Arc<ThumbnailScheduler>,
     pub is_scanning: Arc<AtomicBool>,
+    pub editor: Arc<EditorManager>,
 }
 
 #[tauri::command]
@@ -224,3 +228,81 @@ pub fn get_library_stats(state: State<'_, AppState>) -> Result<LibraryStats, Str
     let is_scanning = state.is_scanning.load(Ordering::Relaxed);
     state.db.get_stats(is_scanning).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
+    state.db.get_app_settings().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_app_settings(
+    settings: AppSettings,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.db.update_app_settings(&settings).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_edit_session(
+    photo_id: i64,
+    state: State<'_, AppState>,
+) -> Result<EditSessionState, String> {
+    state.editor.get_session_state(&state.db, photo_id)
+}
+
+#[tauri::command]
+pub fn apply_rotation(
+    photo_id: i64,
+    degrees: i32,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state
+        .editor
+        .apply_rotation(&state.db, &state.thumbnailer, photo_id, degrees)
+}
+
+#[tauri::command]
+pub fn undo_edit(
+    photo_id: i64,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state.editor.undo_edit(&state.db, &state.thumbnailer, photo_id)
+}
+
+#[tauri::command]
+pub fn redo_edit(
+    photo_id: i64,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state.editor.redo_edit(&state.db, &state.thumbnailer, photo_id)
+}
+
+#[tauri::command]
+pub fn save_edit_session(
+    photo_id: i64,
+    state: State<'_, AppState>,
+) -> Result<EditSessionState, String> {
+    state.editor.save_edit_session(&state.db, photo_id)
+}
+
+#[tauri::command]
+pub fn revert_edit_session(
+    photo_id: i64,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state
+        .editor
+        .revert_edit_session(&state.db, &state.thumbnailer, photo_id)
+}
+
+#[tauri::command]
+pub fn resolve_edit_conflict(
+    photo_id: i64,
+    choice: String,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state
+        .editor
+        .resolve_conflict(&state.db, &state.thumbnailer, photo_id, &choice)
+}
+

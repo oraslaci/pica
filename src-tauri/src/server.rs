@@ -37,6 +37,23 @@ struct PriorityThumbsReq {
     _replace: Option<bool>,
 }
 
+#[derive(Deserialize)]
+struct RotateReq {
+    photo_id: i64,
+    degrees: i32,
+}
+
+#[derive(Deserialize)]
+struct PhotoActionReq {
+    photo_id: i64,
+}
+
+#[derive(Deserialize)]
+struct ResolveConflictReq {
+    photo_id: i64,
+    choice: String,
+}
+
 pub fn start_http_server(state: AppState, port: u16) {
     let addr = format!("127.0.0.1:{}", port);
     let server = match Server::http(&addr) {
@@ -361,6 +378,174 @@ fn handle_request(
                 return Response::from_string(format!(r#"{{"is_favorite":{}}}"#, fav))
                     .with_header(cors_header)
                     .with_header(json_header);
+            }
+        }
+    }
+
+    // GET /api/settings
+    if url == "/api/settings" && method == &Method::Get {
+        if let Ok(settings) = state.db.get_app_settings() {
+            let json = serde_json::to_string(&settings).unwrap_or_default();
+            return Response::from_string(json)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+    }
+
+    // POST /api/settings
+    if url == "/api/settings" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(settings) = serde_json::from_str::<crate::models::AppSettings>(&body) {
+            let _ = state.db.update_app_settings(&settings);
+            return Response::from_string(r#"{"status":"ok"}"#)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+    }
+
+    // GET /api/edit/session?photo_id=X
+    if url.starts_with("/api/edit/session?") && method == &Method::Get {
+        if let Some(id_str) = url.split("photo_id=").nth(1) {
+            if let Ok(photo_id) = id_str.split('&').next().unwrap_or(id_str).parse::<i64>() {
+                if let Ok(session) = state.editor.get_session_state(&state.db, photo_id) {
+                    let json = serde_json::to_string(&session).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/rotate
+    if url == "/api/edit/rotate" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<RotateReq>(&body) {
+            match state.editor.apply_rotation(&state.db, &state.thumbnailer, req.photo_id, req.degrees) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/undo
+    if url == "/api/edit/undo" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.undo_edit(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/redo
+    if url == "/api/edit/redo" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.redo_edit(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/save
+    if url == "/api/edit/save" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.save_edit_session(&state.db, req.photo_id) {
+                Ok(sess) => {
+                    let json = serde_json::to_string(&sess).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/revert
+    if url == "/api/edit/revert" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.revert_edit_session(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/resolve_conflict
+    if url == "/api/edit/resolve_conflict" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<ResolveConflictReq>(&body) {
+            match state.editor.resolve_conflict(&state.db, &state.thumbnailer, req.photo_id, &req.choice) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
             }
         }
     }

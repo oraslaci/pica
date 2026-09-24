@@ -49,3 +49,65 @@ pub struct LibraryStats {
     pub total_favorites: i64,
     pub is_scanning: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSettings {
+    pub original_handling: String, // "backup" or "overwrite"
+    pub hide_originals: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            original_handling: "backup".to_string(),
+            hide_originals: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditStep {
+    pub step_id: usize,
+    pub op: String, // "original", "rotate"
+    pub params: serde_json::Value,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditSessionManifest {
+    pub photo_id: i64,
+    pub original_path: String,
+    pub backup_path: Option<String>,
+    pub base_hash: String,
+    pub base_mtime: u64,
+    pub base_size: u64,
+    pub last_saved_mtime: u64,
+    pub last_saved_size: u64,
+    pub current_step: usize,
+    pub steps: Vec<EditStep>,
+    pub is_committed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditSessionState {
+    pub photo_id: i64,
+    pub file_path: String,
+    pub has_session: bool,
+    pub can_undo: bool,
+    pub can_redo: bool,
+    pub current_step: usize,
+    pub total_steps: usize,
+    pub cumulative_rotation: i32,
+    pub has_backup: bool,
+    pub has_conflict: bool,
+    pub is_committed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditResult {
+    pub success: bool,
+    pub photo: Option<Photo>,
+    pub session_state: EditSessionState,
+    pub message: Option<String>,
+}
+

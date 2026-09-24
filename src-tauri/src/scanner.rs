@@ -88,6 +88,10 @@ impl Scanner {
         for entry in WalkDir::new(&folder_path)
             .follow_links(true)
             .into_iter()
+            .filter_entry(|e| {
+                let name = e.file_name().to_string_lossy();
+                !name.starts_with('.')
+            })
             .filter_map(|e| e.ok())
         {
             if self.cancel_flag.load(Ordering::Relaxed) {

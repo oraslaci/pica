@@ -6,8 +6,6 @@
     X,
     RotateCcw,
     RotateCw,
-    ZoomIn,
-    ZoomOut,
     Maximize2,
     Star,
     Info,
@@ -17,20 +15,38 @@
     Play,
     Pause,
     ArrowLeft,
+    Undo2,
+    Redo2,
+    Save,
+    History,
+    AlertTriangle,
+    Check,
   } from '@lucide/svelte';
-  import type { Photo } from '../types';
-  import { getFullImageUrl, toggleFavorite } from '../api';
+  import type { EditSessionState, Photo } from '../types';
+  import {
+    getFullImageUrl,
+    toggleFavorite,
+    getEditSession,
+    applyRotation,
+    undoEdit,
+    redoEdit,
+    saveEditSession,
+    revertEditSession,
+    resolveEditConflict,
+  } from '../api';
 
   let {
     photos = [],
     currentIndex = 0,
     isOpen = $bindable(false),
     onClose = () => {},
+    onPhotoEdited = () => {},
   }: {
     photos: Photo[];
     currentIndex: number;
     isOpen: boolean;
     onClose?: () => void;
+    onPhotoEdited?: () => void;
   } = $props();
 
   let activeIndex = $state(0);
@@ -41,8 +57,44 @@
   let isPlayingSlideshow = $state(false);
   let slideshowTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Editing & Undo/Redo State
+  let sessionState = $state<EditSessionState | null>(null);
+  let isEditing = $state(false);
+  let cacheBuster = $state(Date.now());
+  let toastMsg = $state<string | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showToast(msg: string) {
+    toastMsg = msg;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastMsg = null;
+    }, 2500);
+  }
+
   $effect(() => {
     activeIndex = currentIndex;
+  });
+
+  const currentPhoto = $derived(photos[activeIndex] || null);
+
+  async function loadSession() {
+    if (!currentPhoto) return;
+    try {
+      const sess = await getEditSession(currentPhoto.id);
+      sessionState = sess;
+    } catch (e) {
+      sessionState = null;
+    }
+  }
+
+  $effect(() => {
+    if (currentPhoto && isOpen) {
+      isFav = currentPhoto.is_favorite;
+      rotation = 0;
+      isZoomed100 = false;
+      loadSession();
+    }
   });
 
   $effect(() => {
@@ -74,16 +126,6 @@
     isPlayingSlideshow = !isPlayingSlideshow;
   }
 
-  const currentPhoto = $derived(photos[activeIndex] || null);
-
-  $effect(() => {
-    if (currentPhoto) {
-      isFav = currentPhoto.is_favorite;
-      rotation = 0;
-      isZoomed100 = false;
-    }
-  });
-
   function nextPhoto() {
     if (photos.length === 0) return;
     activeIndex = (activeIndex + 1) % photos.length;
@@ -94,8 +136,145 @@
     activeIndex = (activeIndex - 1 + photos.length) % photos.length;
   }
 
-  function handleRotate(deg: number) {
+  async function handleRotate(deg: number) {
+    if (!currentPhoto) return;
+
+    // 1. Instant 0ms visual client feedback
     rotation = (rotation + deg) % 360;
+
+    // 2. Perform background write & update
+    isEditing = true;
+    try {
+      const res = await applyRotation(currentPhoto.id, deg);
+      if (res.success && res.photo) {
+        // Update photo details
+        currentPhoto.file_hash = res.photo.file_hash;
+        currentPhoto.file_size = res.photo.file_size;
+        currentPhoto.width = res.photo.width;
+        currentPhoto.height = res.photo.height;
+        sessionState = res.session_state;
+        cacheBuster = Date.now();
+        // Since image on disk now has the rotation, reset client CSS delta
+        rotation = 0;
+        onPhotoEdited();
+      } else if (res.session_state?.has_conflict) {
+        sessionState = res.session_state;
+      }
+    } catch (e) {
+      console.error('Failed to rotate:', e);
+      showToast('Error rotating image');
+    } finally {
+      isEditing = false;
+    }
+  }
+
+  async function handleUndo() {
+    if (!currentPhoto || !sessionState?.can_undo) return;
+    isEditing = true;
+    try {
+      const res = await undoEdit(currentPhoto.id);
+      if (res.success && res.photo) {
+        currentPhoto.file_hash = res.photo.file_hash;
+        currentPhoto.file_size = res.photo.file_size;
+        currentPhoto.width = res.photo.width;
+        currentPhoto.height = res.photo.height;
+        sessionState = res.session_state;
+        cacheBuster = Date.now();
+        rotation = 0;
+        showToast('Undo applied');
+        onPhotoEdited();
+      }
+    } catch (e) {
+      console.error('Failed to undo:', e);
+    } finally {
+      isEditing = false;
+    }
+  }
+
+  async function handleRedo() {
+    if (!currentPhoto || !sessionState?.can_redo) return;
+    isEditing = true;
+    try {
+      const res = await redoEdit(currentPhoto.id);
+      if (res.success && res.photo) {
+        currentPhoto.file_hash = res.photo.file_hash;
+        currentPhoto.file_size = res.photo.file_size;
+        currentPhoto.width = res.photo.width;
+        currentPhoto.height = res.photo.height;
+        sessionState = res.session_state;
+        cacheBuster = Date.now();
+        rotation = 0;
+        showToast('Redo applied');
+        onPhotoEdited();
+      }
+    } catch (e) {
+      console.error('Failed to redo:', e);
+    } finally {
+      isEditing = false;
+    }
+  }
+
+  async function handleSaveSession() {
+    if (!currentPhoto) return;
+    isEditing = true;
+    try {
+      const sess = await saveEditSession(currentPhoto.id);
+      sessionState = sess;
+      showToast('Edits saved to disk');
+      onPhotoEdited();
+    } catch (e) {
+      console.error('Failed to save session:', e);
+      showToast('Error saving edits');
+    } finally {
+      isEditing = false;
+    }
+  }
+
+  async function handleRevert() {
+    if (!currentPhoto) return;
+    isEditing = true;
+    try {
+      const res = await revertEditSession(currentPhoto.id);
+      if (res.success && res.photo) {
+        currentPhoto.file_hash = res.photo.file_hash;
+        currentPhoto.file_size = res.photo.file_size;
+        currentPhoto.width = res.photo.width;
+        currentPhoto.height = res.photo.height;
+        sessionState = res.session_state;
+        cacheBuster = Date.now();
+        rotation = 0;
+        showToast('Reverted to original photo');
+        onPhotoEdited();
+      }
+    } catch (e) {
+      console.error('Failed to revert:', e);
+      showToast('Error reverting to original');
+    } finally {
+      isEditing = false;
+    }
+  }
+
+  async function handleResolveConflict(choice: string) {
+    if (!currentPhoto) return;
+    isEditing = true;
+    try {
+      const res = await resolveEditConflict(currentPhoto.id, choice);
+      if (res.success && res.photo) {
+        currentPhoto.file_hash = res.photo.file_hash;
+        currentPhoto.file_size = res.photo.file_size;
+        currentPhoto.width = res.photo.width;
+        currentPhoto.height = res.photo.height;
+        sessionState = res.session_state;
+        cacheBuster = Date.now();
+        rotation = 0;
+        showToast(res.message || 'Conflict resolved');
+        onPhotoEdited();
+      }
+    } catch (e) {
+      console.error('Failed to resolve conflict:', e);
+    } finally {
+      isEditing = false;
+    }
   }
 
   function toggleZoom() {
@@ -112,9 +291,24 @@
   function handleKeyDown(e: KeyboardEvent) {
     if (!isOpen) return;
 
+    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
     if (e.key === 'Escape') {
       isOpen = false;
       onClose();
+    } else if (isCtrlOrCmd && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+    } else if (isCtrlOrCmd && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      handleRedo();
+    } else if (isCtrlOrCmd && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      handleSaveSession();
     } else if (e.key === 'ArrowRight' || e.key === 'j') {
       nextPhoto();
     } else if (e.key === 'ArrowLeft' || e.key === 'k') {
@@ -125,7 +319,11 @@
     } else if (e.key === 'f') {
       handleToggleFav();
     } else if (e.key === 'r') {
-      handleRotate(90);
+      if (e.shiftKey) {
+        handleRotate(-90);
+      } else {
+        handleRotate(90);
+      }
     } else if (e.key === 'p') {
       toggleSlideshow();
     } else if (e.key === 'i') {
@@ -139,6 +337,7 @@
 
   onDestroy(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    if (toastTimer) clearTimeout(toastTimer);
   });
 
   function formatBytes(bytes: number) {
@@ -163,7 +362,7 @@
 
 {#if isOpen && currentPhoto}
   <div class="fixed inset-0 z-50 bg-[#0e0e0e] flex flex-col select-none overflow-hidden">
-    <!-- Top Bar: Back button, photo title & Close button -->
+    <!-- Top Bar: Back button, photo title, toast, and close button -->
     <div
       class="absolute top-0 inset-x-0 z-20 h-14 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between px-6 opacity-0 hover:opacity-100 transition-opacity duration-200"
     >
@@ -179,9 +378,17 @@
         <span>Library</span>
       </button>
 
-      <div class="text-xs font-medium text-neutral-300 truncate max-w-lg drop-shadow">
-        {currentPhoto.file_name}
-        <span class="text-neutral-500 ml-2">({activeIndex + 1} of {photos.length})</span>
+      <div class="flex items-center gap-3">
+        <div class="text-xs font-medium text-neutral-300 truncate max-w-sm drop-shadow">
+          {currentPhoto.file_name}
+          <span class="text-neutral-500 ml-2">({activeIndex + 1} of {photos.length})</span>
+        </div>
+
+        {#if sessionState?.has_session && !sessionState?.is_committed}
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+            Unsaved Edits
+          </span>
+        {/if}
       </div>
 
       <button
@@ -196,14 +403,53 @@
       </button>
     </div>
 
+    <!-- Toast Notification Banner -->
+    {#if toastMsg}
+      <div class="absolute top-16 inset-x-0 z-30 flex justify-center pointer-events-none animate-in fade-in duration-150">
+        <div class="px-4 py-1.5 rounded-full bg-neutral-900/90 text-white text-xs font-medium border border-neutral-700 shadow-xl backdrop-blur-md">
+          {toastMsg}
+        </div>
+      </div>
+    {/if}
+
+    <!-- External Modification Conflict Banner -->
+    {#if sessionState?.has_conflict}
+      <div class="absolute top-16 inset-x-0 z-40 flex justify-center px-4">
+        <div class="max-w-xl w-full p-4 rounded-xl bg-amber-950/95 border border-amber-500/60 shadow-2xl backdrop-blur-md text-amber-200 text-xs space-y-3 animate-in zoom-in-95 duration-150">
+          <div class="flex items-center gap-2 text-amber-300 font-bold text-sm">
+            <AlertTriangle class="w-5 h-5 shrink-0 text-amber-400" />
+            <span>External Changes Detected on Disk</span>
+          </div>
+          <p class="text-amber-200/90 leading-relaxed text-[11px]">
+            This photo was modified outside of Pica while you had an uncommitted editing draft. How would you like to proceed?
+          </p>
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              onclick={() => handleResolveConflict('keep_external')}
+              class="px-3 py-1.5 rounded bg-amber-900/80 hover:bg-amber-800 text-amber-100 font-semibold border border-amber-600/40 transition-colors"
+            >
+              Keep External Version
+            </button>
+            <button
+              onclick={() => handleResolveConflict('apply_pica')}
+              class="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
+            >
+              Overwrite with Pica Draft
+            </button>
+            <button
+              onclick={() => handleResolveConflict('save_as_copy')}
+              class="px-3 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-600 transition-colors"
+            >
+              Save Draft as New Copy
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+
     <!-- Main Canvas Viewport -->
     <div
       class="flex-1 w-full h-full relative flex items-center justify-center cursor-default overflow-hidden"
-      onclick={(e) => {
-        if (e.target === e.currentTarget) {
-          // clicked background
-        }
-      }}
     >
       <!-- Navigation Edge Zones -->
       <button
@@ -222,13 +468,13 @@
         <ChevronRight class="w-7 h-7" />
       </button>
 
-      <!-- The Image Element -->
+      <!-- The Image Element (Immediate hardware-accelerated CSS rotation feedback) -->
       <div
-        class="w-full h-full flex items-center justify-center p-6 transition-transform duration-150"
+        class="w-full h-full flex items-center justify-center p-6 transition-transform duration-100 ease-out"
         style={`transform: rotate(${rotation}deg);`}
       >
         <img
-          src={getFullImageUrl(currentPhoto)}
+          src={getFullImageUrl(currentPhoto, cacheBuster)}
           alt={currentPhoto.file_name}
           class={`max-h-full max-w-full rounded-sm shadow-2xl transition-all duration-100 ${
             isZoomed100 ? 'scale-150 cursor-grab' : 'object-contain cursor-zoom-in'
@@ -292,6 +538,13 @@
                 <div>{formatBytes(currentPhoto.file_size)}</div>
               </div>
             </div>
+
+            {#if sessionState?.has_backup}
+              <div class="pt-2 border-t border-neutral-800 text-[10px] text-emerald-400 flex items-center gap-1.5">
+                <Check class="w-3.5 h-3.5" />
+                <span>Pristine original preserved in .pica_originals</span>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -300,7 +553,7 @@
     <!-- Picasa Signature Floating HUD Overlay at Bottom Center -->
     <div class="absolute bottom-6 inset-x-0 z-30 flex justify-center pointer-events-none">
       <div
-        class="pointer-events-auto flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#18181b]/85 border border-[#3f3f46]/70 shadow-2xl backdrop-blur-md text-neutral-300"
+        class="pointer-events-auto flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#18181b]/90 border border-[#3f3f46]/80 shadow-2xl backdrop-blur-md text-neutral-300"
       >
         <!-- Exit to Library -->
         <button
@@ -314,9 +567,9 @@
           <X class="w-4 h-4" />
         </button>
 
-        <div class="w-px h-5 bg-neutral-700/60 mx-1"></div>
+        <div class="w-px h-5 bg-neutral-700/60 mx-0.5"></div>
 
-        <!-- Prev -->
+        <!-- Prev Photo -->
         <button
           onclick={prevPhoto}
           class="p-2 rounded-full hover:bg-white/10 hover:text-white transition-colors"
@@ -326,11 +579,11 @@
         </button>
 
         <!-- Position Counter -->
-        <span class="text-xs font-medium px-2 text-neutral-400">
+        <span class="text-xs font-medium px-1.5 text-neutral-400">
           {activeIndex + 1} / {photos.length}
         </span>
 
-        <!-- Next -->
+        <!-- Next Photo -->
         <button
           onclick={nextPhoto}
           class="p-2 rounded-full hover:bg-white/10 hover:text-white transition-colors"
@@ -354,25 +607,74 @@
           {/if}
         </button>
 
-        <div class="w-px h-5 bg-neutral-700/60 mx-1"></div>
+        <div class="w-px h-5 bg-neutral-700/60 mx-0.5"></div>
 
-        <!-- Rotate Left -->
+        <!-- Rotate Left (CCW) -->
         <button
           onclick={() => handleRotate(-90)}
           class="p-2 rounded-full hover:bg-white/10 hover:text-white transition-colors"
-          title="Rotate Left (-90°)"
+          title="Rotate Left -90° (Shift+R)"
         >
           <RotateCcw class="w-4 h-4" />
         </button>
 
-        <!-- Rotate Right -->
+        <!-- Rotate Right (CW) -->
         <button
           onclick={() => handleRotate(90)}
           class="p-2 rounded-full hover:bg-white/10 hover:text-white transition-colors"
-          title="Rotate Right (+90°)"
+          title="Rotate Right +90° (r)"
         >
           <RotateCw class="w-4 h-4" />
         </button>
+
+        <div class="w-px h-5 bg-neutral-700/60 mx-0.5"></div>
+
+        <!-- Undo Action -->
+        <button
+          onclick={handleUndo}
+          disabled={!sessionState?.can_undo || isEditing}
+          class="p-2 rounded-full hover:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          title="Undo Edit (Ctrl+Z)"
+        >
+          <Undo2 class="w-4 h-4" />
+        </button>
+
+        <!-- Redo Action -->
+        <button
+          onclick={handleRedo}
+          disabled={!sessionState?.can_redo || isEditing}
+          class="p-2 rounded-full hover:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          title="Redo Edit (Ctrl+Y)"
+        >
+          <Redo2 class="w-4 h-4" />
+        </button>
+
+        <!-- Commit / Save Button -->
+        {#if sessionState?.has_session && !sessionState?.is_committed}
+          <button
+            onclick={handleSaveSession}
+            disabled={isEditing}
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-colors"
+            title="Save edits to disk (Ctrl+S)"
+          >
+            <Save class="w-3.5 h-3.5" />
+            <span>Save</span>
+          </button>
+        {/if}
+
+        <!-- Revert to Original -->
+        {#if sessionState?.has_session || sessionState?.has_backup}
+          <button
+            onclick={handleRevert}
+            disabled={isEditing}
+            class="p-2 rounded-full hover:bg-white/10 hover:text-amber-400 transition-colors"
+            title="Revert to original photo"
+          >
+            <History class="w-4 h-4" />
+          </button>
+        {/if}
+
+        <div class="w-px h-5 bg-neutral-700/60 mx-0.5"></div>
 
         <!-- 1:1 Zoom Toggle -->
         <button
@@ -384,8 +686,6 @@
         >
           <Maximize2 class="w-4 h-4" />
         </button>
-
-        <div class="w-px h-5 bg-neutral-700/60 mx-1"></div>
 
         <!-- Favorite Star -->
         <button

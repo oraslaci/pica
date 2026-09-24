@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod editor;
 pub mod models;
 pub mod scanner;
 pub mod server;
@@ -13,6 +14,7 @@ use tauri::Emitter;
 
 use commands::AppState;
 use db::DbManager;
+use editor::EditorManager;
 use thumbnailer::ThumbnailManager;
 
 pub fn initialize_default_folders(db: &DbManager) {
@@ -32,6 +34,7 @@ pub fn run_server_only() {
     let db = DbManager::new().expect("Failed to initialize database");
     initialize_default_folders(&db);
     let thumbnailer = Arc::new(ThumbnailManager::new());
+    let editor = Arc::new(EditorManager::new());
     let available_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -49,6 +52,7 @@ pub fn run_server_only() {
         thumbnailer,
         scheduler,
         is_scanning,
+        editor,
     };
 
     // Auto-scan initial folders on startup
@@ -85,6 +89,7 @@ pub fn run() {
     initialize_default_folders(&db);
 
     let thumbnailer = Arc::new(ThumbnailManager::new());
+    let editor = Arc::new(EditorManager::new());
     let available_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -102,6 +107,7 @@ pub fn run() {
         thumbnailer: thumbnailer.clone(),
         scheduler: scheduler.clone(),
         is_scanning,
+        editor,
     };
 
     // Start local embedded HTTP server on 127.0.0.1:3456
@@ -128,7 +134,7 @@ pub fn run() {
                         return Response::builder()
                             .status(StatusCode::OK)
                             .header(header::CONTENT_TYPE, "image/jpeg")
-                            .header(header::CACHE_CONTROL, "public, max-age=31536000")
+                            .header(header::CACHE_CONTROL, "no-cache")
                             .body(bytes)
                             .unwrap();
                     }
@@ -153,6 +159,7 @@ pub fn run() {
                                 return Response::builder()
                                     .status(StatusCode::OK)
                                     .header(header::CONTENT_TYPE, mime)
+                                    .header(header::CACHE_CONTROL, "no-cache")
                                     .body(bytes)
                                     .unwrap();
                             }
@@ -178,6 +185,15 @@ pub fn run() {
             commands::toggle_favorite,
             commands::get_library_stats,
             commands::set_thumbnail_priority,
+            commands::get_app_settings,
+            commands::update_app_settings,
+            commands::get_edit_session,
+            commands::apply_rotation,
+            commands::undo_edit,
+            commands::redo_edit,
+            commands::save_edit_session,
+            commands::revert_edit_session,
+            commands::resolve_edit_conflict,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

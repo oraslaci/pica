@@ -11,6 +11,7 @@
     Bug,
     Trash2,
     BarChart2,
+    Settings,
   } from '@lucide/svelte';
   import { clearThumbnailCache, getThumbStats } from '../api';
 
@@ -20,6 +21,7 @@
     theme = $bindable('dark'),
     onRefresh = () => {},
     onOpenFolderManager = () => {},
+    onOpenSettings = () => {},
     onTriggerScan = () => {},
   }: {
     searchQuery: string;
@@ -27,6 +29,7 @@
     theme: 'dark' | 'light';
     onRefresh: () => void;
     onOpenFolderManager: () => void;
+    onOpenSettings?: () => void;
     onTriggerScan?: () => void;
   } = $props();
 
@@ -314,6 +317,20 @@
     >
       <FolderCog class="w-3.5 h-3.5 text-blue-500" />
       <span class="hidden sm:inline">Folder Manager...</span>
+    </button>
+
+    <!-- Options / Settings Button -->
+    <button
+      onclick={onOpenSettings}
+      class="p-1.5 rounded border transition-colors flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10"
+      style="
+        background-color: var(--panel-bg);
+        border-color: var(--border-subtle);
+        color: var(--text-main);
+      "
+      title="Options & Preferences"
+    >
+      <Settings class="w-3.5 h-3.5" />
     </button>
   </div>
 </header>

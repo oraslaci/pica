@@ -1,6 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { Folder, FolderWithPhotos, LibraryStats, Photo, ScanProgress } from './types';
+import type {
+  AppSettings,
+  EditResult,
+  EditSessionState,
+  Folder,
+  FolderWithPhotos,
+  LibraryStats,
+  Photo,
+  ScanProgress,
+} from './types';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const SERVER_URL = 'http://127.0.0.1:3456';
@@ -185,18 +194,20 @@ export async function getLibraryStats(): Promise<LibraryStats> {
   return await res.json();
 }
 
-export function getThumbnailUrl(photo: Photo): string {
+export function getThumbnailUrl(photo: Photo, cacheBuster?: string | number): string {
+  const cb = cacheBuster !== undefined ? `?v=${cacheBuster}` : '';
   if (isTauri) {
-    return `pica://localhost/thumb/${photo.file_hash}`;
+    return `pica://localhost/thumb/${photo.file_hash}${cb}`;
   }
-  return `${SERVER_URL}/thumb/${photo.file_hash}`;
+  return `${SERVER_URL}/thumb/${photo.file_hash}${cb}`;
 }
 
-export function getFullImageUrl(photo: Photo): string {
+export function getFullImageUrl(photo: Photo, cacheBuster?: string | number): string {
+  const cb = cacheBuster !== undefined ? `&v=${cacheBuster}` : `&v=${photo.file_hash}`;
   if (isTauri) {
-    return `pica://localhost/file?path=${encodeURIComponent(photo.file_path)}`;
+    return `pica://localhost/file?path=${encodeURIComponent(photo.file_path)}${cb}`;
   }
-  return `${SERVER_URL}/photo?path=${encodeURIComponent(photo.file_path)}`;
+  return `${SERVER_URL}/photo?path=${encodeURIComponent(photo.file_path)}${cb}`;
 }
 
 export function onScanProgress(callback: (prog: ScanProgress) => void) {
@@ -302,4 +313,154 @@ async function initThumbnailNotifications() {
     }, 150);
   }
 }
+
+// -------------------------------------------------------------
+// Options & Settings API
+// -------------------------------------------------------------
+export async function getAppSettings(): Promise<AppSettings> {
+  if (isTauri) {
+    try {
+      return await invoke<AppSettings>('get_app_settings');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/settings`);
+  if (!res.ok) return { original_handling: 'backup', hide_originals: true };
+  return await res.json();
+}
+
+export async function updateAppSettings(settings: AppSettings): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('update_app_settings', { settings });
+    } catch {
+      // Fallback
+    }
+  }
+  await fetch(`${SERVER_URL}/api/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+}
+
+// -------------------------------------------------------------
+// Image Editing & Rotation API
+// -------------------------------------------------------------
+export async function getEditSession(photoId: number): Promise<EditSessionState> {
+  if (isTauri) {
+    try {
+      return await invoke<EditSessionState>('get_edit_session', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/session?photo_id=${photoId}`);
+  if (!res.ok) throw new Error('Failed to load edit session');
+  return await res.json();
+}
+
+export async function applyRotation(photoId: number, degrees: number): Promise<EditResult> {
+  if (isTauri) {
+    try {
+      return await invoke<EditResult>('apply_rotation', { photoId, degrees });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/rotate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, degrees }),
+  });
+  if (!res.ok) throw new Error('Failed to apply rotation');
+  return await res.json();
+}
+
+export async function undoEdit(photoId: number): Promise<EditResult> {
+  if (isTauri) {
+    try {
+      return await invoke<EditResult>('undo_edit', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/undo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to undo edit');
+  return await res.json();
+}
+
+export async function redoEdit(photoId: number): Promise<EditResult> {
+  if (isTauri) {
+    try {
+      return await invoke<EditResult>('redo_edit', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/redo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to redo edit');
+  return await res.json();
+}
+
+export async function saveEditSession(photoId: number): Promise<EditSessionState> {
+  if (isTauri) {
+    try {
+      return await invoke<EditSessionState>('save_edit_session', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to save edit session');
+  return await res.json();
+}
+
+export async function revertEditSession(photoId: number): Promise<EditResult> {
+  if (isTauri) {
+    try {
+      return await invoke<EditResult>('revert_edit_session', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/revert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to revert edit session');
+  return await res.json();
+}
+
+export async function resolveEditConflict(photoId: number, choice: string): Promise<EditResult> {
+  if (isTauri) {
+    try {
+      return await invoke<EditResult>('resolve_edit_conflict', { photoId, choice });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/resolve_conflict`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, choice }),
+  });
+  if (!res.ok) throw new Error('Failed to resolve edit conflict');
+  return await res.json();
+}
+
 

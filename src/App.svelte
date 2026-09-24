@@ -5,6 +5,7 @@
   import LibraryGrid from './lib/components/LibraryGrid.svelte';
   import BottomBar from './lib/components/BottomBar.svelte';
   import FolderManagerModal from './lib/components/FolderManagerModal.svelte';
+  import SettingsModal from './lib/components/SettingsModal.svelte';
   import ImageViewer from './lib/components/ImageViewer.svelte';
   import {
     getFoldersWithPhotos,
@@ -40,6 +41,7 @@
 
   // Modals & Viewer
   let isFolderManagerOpen = $state(false);
+  let isSettingsOpen = $state(false);
   let isViewerOpen = $state(false);
   let viewerPhotos = $state<Photo[]>([]);
   let viewerIndex = $state(0);
@@ -290,6 +292,7 @@
     bind:theme
     onRefresh={refreshData}
     onOpenFolderManager={() => (isFolderManagerOpen = true)}
+    onOpenSettings={() => (isSettingsOpen = true)}
     onTriggerScan={async () => {
       await triggerScan();
       refreshData();
@@ -351,10 +354,17 @@
     onFoldersUpdated={refreshData}
   />
 
+  <!-- Preferences & Options Dialog -->
+  <SettingsModal
+    bind:isOpen={isSettingsOpen}
+    onSettingsChanged={refreshData}
+  />
+
   <!-- Fullscreen / In-Place HUD Photo Viewer -->
   <ImageViewer
     bind:isOpen={isViewerOpen}
     photos={viewerPhotos}
     currentIndex={viewerIndex}
+    onPhotoEdited={refreshData}
   />
 </div>

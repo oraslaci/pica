@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection, Result};
-use crate::models::{Folder, LibraryStats, Photo};
+use crate::models::{AppSettings, Folder, LibraryStats, Photo};
 
 #[derive(Clone)]
 pub struct DbManager {
@@ -238,6 +238,8 @@ impl DbManager {
                     width, height, date_taken, camera_make, camera_model, orientation, is_favorite
              FROM photos
              WHERE folder_id = ?1
+               AND file_path NOT LIKE '%/.pica_originals/%'
+               AND file_path NOT LIKE '%/.picasaoriginals/%'
              ORDER BY date_taken DESC, file_name ASC",
         )?;
 
@@ -247,6 +249,101 @@ impl DbManager {
             photos.push(p?);
         }
         Ok(photos)
+    }
+
+    pub fn get_photo_by_id(&self, photo_id: i64) -> Result<Option<Photo>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
+                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite
+             FROM photos WHERE id = ?1 LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![photo_id])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(Self::map_photo_row(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_photo_by_path(&self, file_path: &str) -> Result<Option<Photo>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
+                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite
+             FROM photos WHERE file_path = ?1 LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![file_path])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(Self::map_photo_row(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn update_photo_after_edit(
+        &self,
+        id: i64,
+        new_hash: &str,
+        new_size: i64,
+        width: Option<u32>,
+        height: Option<u32>,
+        orientation: Option<u32>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE photos SET
+                file_hash = ?1,
+                file_size = ?2,
+                width = ?3,
+                height = ?4,
+                orientation = ?5
+             WHERE id = ?6",
+            params![new_hash, new_size, width, height, orientation, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(row.get(0)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_app_settings(&self) -> Result<AppSettings> {
+        let original_handling = self
+            .get_setting("original_handling")?
+            .unwrap_or_else(|| "backup".to_string());
+        let hide_originals = self
+            .get_setting("hide_originals")?
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(true);
+
+        Ok(AppSettings {
+            original_handling,
+            hide_originals,
+        })
+    }
+
+    pub fn update_app_settings(&self, settings: &AppSettings) -> Result<()> {
+        self.set_setting("original_handling", &settings.original_handling)?;
+        self.set_setting("hide_originals", if settings.hide_originals { "true" } else { "false" })?;
+        Ok(())
     }
 
     pub fn get_photo_path_by_hash(&self, file_hash: &str) -> Result<Option<String>> {
@@ -266,6 +363,8 @@ impl DbManager {
             "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
                     width, height, date_taken, camera_make, camera_model, orientation, is_favorite
              FROM photos
+             WHERE file_path NOT LIKE '%/.pica_originals/%'
+               AND file_path NOT LIKE '%/.picasaoriginals/%'
              ORDER BY date_taken DESC, id DESC
              LIMIT ?1 OFFSET ?2",
         )?;
