@@ -6,7 +6,8 @@ use tauri::{AppHandle, Emitter, State};
 use crate::db::DbManager;
 use crate::editor::EditorManager;
 use crate::models::{
-    AppSettings, EditResult, EditSessionState, Folder, FolderWithPhotos, LibraryStats, Photo,
+    AppSettings, CropSuggestion, EditResult, EditSessionState, Folder, FolderWithPhotos,
+    LibraryStats, Photo, StraightenSuggestion,
 };
 use crate::scanner::Scanner;
 use crate::thumbnailer::{ThumbnailManager, ThumbnailScheduler};
@@ -278,11 +279,20 @@ pub fn redo_edit(
 }
 
 #[tauri::command]
+pub fn jump_to_step(
+    photo_id: i64,
+    step_id: usize,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state.editor.jump_to_step(&state.db, &state.thumbnailer, photo_id, step_id)
+}
+
+#[tauri::command]
 pub fn save_edit_session(
     photo_id: i64,
     state: State<'_, AppState>,
 ) -> Result<EditSessionState, String> {
-    state.editor.save_edit_session(&state.db, photo_id)
+    state.editor.save_edit_session(&state.db, &state.thumbnailer, photo_id)
 }
 
 #[tauri::command]
@@ -305,4 +315,51 @@ pub fn resolve_edit_conflict(
         .editor
         .resolve_conflict(&state.db, &state.thumbnailer, photo_id, &choice)
 }
+
+#[tauri::command]
+pub fn get_crop_suggestions(
+    photo_id: i64,
+    aspect_ratio: Option<f64>,
+    state: State<'_, AppState>,
+) -> Result<Vec<CropSuggestion>, String> {
+    state
+        .editor
+        .get_crop_suggestions(&state.db, &state.thumbnailer, photo_id, aspect_ratio)
+}
+
+#[tauri::command]
+pub fn apply_crop(
+    photo_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state
+        .editor
+        .apply_crop(&state.db, &state.thumbnailer, photo_id, x, y, width, height)
+}
+
+#[tauri::command]
+pub fn get_straighten_suggestions(
+    photo_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<StraightenSuggestion>, String> {
+    state
+        .editor
+        .get_straighten_suggestions(&state.db, &state.thumbnailer, photo_id)
+}
+
+#[tauri::command]
+pub fn apply_straighten(
+    photo_id: i64,
+    angle: f64,
+    state: State<'_, AppState>,
+) -> Result<EditResult, String> {
+    state
+        .editor
+        .apply_straighten(&state.db, &state.thumbnailer, photo_id, angle)
+}
+
 

@@ -26,6 +26,8 @@ pub struct Photo {
     pub orientation: Option<u32>,
     pub is_favorite: bool,
     pub thumbnail_path: Option<String>,
+    #[serde(default)]
+    pub edit_rotation: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +73,10 @@ pub struct EditStep {
     pub op: String, // "original", "rotate"
     pub params: serde_json::Value,
     pub timestamp: i64,
+    #[serde(default)]
+    pub render_file: Option<String>,
+    #[serde(default)]
+    pub cumulative_rotation: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,8 +106,15 @@ pub struct EditSessionState {
     pub cumulative_rotation: i32,
     pub has_backup: bool,
     pub backup_path: Option<String>,
+    pub preview_path: Option<String>,
     pub has_conflict: bool,
     pub is_committed: bool,
+    #[serde(default)]
+    pub session_dir: Option<String>,
+    #[serde(default)]
+    pub session_manifest_path: Option<String>,
+    #[serde(default)]
+    pub steps: Vec<EditStep>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,5 +123,24 @@ pub struct EditResult {
     pub photo: Option<Photo>,
     pub session_state: EditSessionState,
     pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CropSuggestion {
+    pub id: usize,
+    pub label: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StraightenSuggestion {
+    pub id: usize,
+    pub label: String,
+    pub angle: f64,
+    pub confidence: f64,
+    pub description: String,
 }
 

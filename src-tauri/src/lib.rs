@@ -35,6 +35,7 @@ pub fn run_server_only() {
     initialize_default_folders(&db);
     let thumbnailer = Arc::new(ThumbnailManager::new());
     let editor = Arc::new(EditorManager::new());
+    editor.sync_sessions_to_db(&db);
     let available_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -90,6 +91,7 @@ pub fn run() {
 
     let thumbnailer = Arc::new(ThumbnailManager::new());
     let editor = Arc::new(EditorManager::new());
+    editor.sync_sessions_to_db(&db);
     let available_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -191,9 +193,14 @@ pub fn run() {
             commands::apply_rotation,
             commands::undo_edit,
             commands::redo_edit,
+            commands::jump_to_step,
             commands::save_edit_session,
             commands::revert_edit_session,
             commands::resolve_edit_conflict,
+            commands::get_crop_suggestions,
+            commands::apply_crop,
+            commands::get_straighten_suggestions,
+            commands::apply_straighten,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

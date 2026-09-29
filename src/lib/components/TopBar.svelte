@@ -12,8 +12,10 @@
     Trash2,
     BarChart2,
     Settings,
+    Layers,
   } from '@lucide/svelte';
   import { clearThumbnailCache, getThumbStats } from '../api';
+  import { showEditOverlay } from '../debugStore';
 
   let {
     searchQuery = $bindable(''),
@@ -242,6 +244,24 @@
             {:else}
               <div style="color: var(--text-dim);">Loading stats…</div>
             {/if}
+          </div>
+
+          <!-- Image Edit Debug Overlay Checkbox -->
+          <div class="px-3 py-2.5 border-b space-y-1.5" style="border-color: var(--border-subtle);">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                bind:checked={$showEditOverlay}
+                class="w-3.5 h-3.5 rounded accent-amber-500 cursor-pointer"
+              />
+              <div class="flex items-center gap-1.5 font-semibold text-amber-400">
+                <Layers class="w-3.5 h-3.5" />
+                <span>Image Edit Debug Overlay</span>
+              </div>
+            </label>
+            <div class="text-[10px] pl-5.5 leading-relaxed" style="color: var(--text-dim);">
+              Follow live session JSON, intermediate thumbs, render status, and proxy paths on the image edit page.
+            </div>
           </div>
 
           <!-- Actions -->

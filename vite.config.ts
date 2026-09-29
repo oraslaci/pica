@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [tailwindcss(), svelte()],
   clearScreen: false,
   server: {
-    port: 5173,
+    port: 5200,
     strictPort: true,
   }
 })

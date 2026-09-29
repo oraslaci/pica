@@ -110,6 +110,8 @@ impl DbManager {
             CREATE INDEX IF NOT EXISTS idx_photos_hash ON photos(file_hash);",
         )?;
 
+        let _ = conn.execute("ALTER TABLE photos ADD COLUMN edit_rotation INTEGER DEFAULT 0", []);
+
         Ok(())
     }
 
@@ -235,7 +237,7 @@ impl DbManager {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
-                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite
+                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite, edit_rotation
              FROM photos
              WHERE folder_id = ?1
                AND file_path NOT LIKE '%/.pica_originals/%'
@@ -255,7 +257,7 @@ impl DbManager {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
-                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite
+                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite, edit_rotation
              FROM photos WHERE id = ?1 LIMIT 1",
         )?;
         let mut rows = stmt.query(params![photo_id])?;
@@ -270,7 +272,7 @@ impl DbManager {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
-                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite
+                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite, edit_rotation
              FROM photos WHERE file_path = ?1 LIMIT 1",
         )?;
         let mut rows = stmt.query(params![file_path])?;
@@ -297,9 +299,19 @@ impl DbManager {
                 file_size = ?2,
                 width = ?3,
                 height = ?4,
-                orientation = ?5
+                orientation = ?5,
+                edit_rotation = 0
              WHERE id = ?6",
             params![new_hash, new_size, width, height, orientation, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_photo_edit_rotation(&self, photo_id: i64, rotation: i32) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE photos SET edit_rotation = ?1 WHERE id = ?2",
+            params![rotation, photo_id],
         )?;
         Ok(())
     }
@@ -361,7 +373,7 @@ impl DbManager {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, folder_id, file_path, file_hash, file_name, file_size,
-                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite
+                    width, height, date_taken, camera_make, camera_model, orientation, is_favorite, edit_rotation
              FROM photos
              WHERE file_path NOT LIKE '%/.pica_originals/%'
                AND file_path NOT LIKE '%/.picasaoriginals/%'
@@ -422,6 +434,7 @@ impl DbManager {
 
     fn map_photo_row(row: &rusqlite::Row) -> Result<Photo> {
         let fav_int: i32 = row.get(12)?;
+        let edit_rotation: Option<i32> = row.get(13).ok();
         Ok(Photo {
             id: row.get(0)?,
             folder_id: row.get(1)?,
@@ -437,6 +450,7 @@ impl DbManager {
             orientation: row.get(11)?,
             is_favorite: fav_int == 1,
             thumbnail_path: None,
+            edit_rotation,
         })
     }
 }

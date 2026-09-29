@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type {
   AppSettings,
+  CropSuggestion,
   EditResult,
   EditSessionState,
   Folder,
@@ -9,6 +10,7 @@ import type {
   LibraryStats,
   Photo,
   ScanProgress,
+  StraightenSuggestion,
 } from './types';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -218,6 +220,14 @@ export function getOriginalImageUrl(photo: Photo, backupPath?: string | null): s
   return `${SERVER_URL}/photo?path=${encodeURIComponent(targetPath)}`;
 }
 
+export function getPreviewImageUrl(filePath: string, cacheBuster?: string | number): string {
+  const cb = cacheBuster !== undefined ? `&v=${cacheBuster}` : '';
+  if (isTauri) {
+    return `pica://localhost/file?path=${encodeURIComponent(filePath)}${cb}`;
+  }
+  return `${SERVER_URL}/photo?path=${encodeURIComponent(filePath)}${cb}`;
+}
+
 export function onScanProgress(callback: (prog: ScanProgress) => void) {
   if (!isTauri) {
     // In browser mode, poll stats periodically
@@ -356,23 +366,36 @@ export async function updateAppSettings(settings: AppSettings): Promise<void> {
 // -------------------------------------------------------------
 // Image Editing & Rotation API
 // -------------------------------------------------------------
+const sessionCache = new Map<number, EditSessionState>();
+
+export function getCachedEditSession(photoId: number): EditSessionState | null {
+  return sessionCache.get(photoId) ?? null;
+}
+
 export async function getEditSession(photoId: number): Promise<EditSessionState> {
   if (isTauri) {
     try {
-      return await invoke<EditSessionState>('get_edit_session', { photoId });
+      const sess = await invoke<EditSessionState>('get_edit_session', { photoId });
+      sessionCache.set(photoId, sess);
+      return sess;
     } catch {
       // Fallback
     }
   }
   const res = await fetch(`${SERVER_URL}/api/edit/session?photo_id=${photoId}`);
   if (!res.ok) throw new Error('Failed to load edit session');
-  return await res.json();
+  const sess: EditSessionState = await res.json();
+  sessionCache.set(photoId, sess);
+  return sess;
 }
 
 export async function applyRotation(photoId: number, degrees: number): Promise<EditResult> {
+  let result: EditResult;
   if (isTauri) {
     try {
-      return await invoke<EditResult>('apply_rotation', { photoId, degrees });
+      result = await invoke<EditResult>('apply_rotation', { photoId, degrees });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
     } catch {
       // Fallback
     }
@@ -383,13 +406,18 @@ export async function applyRotation(photoId: number, degrees: number): Promise<E
     body: JSON.stringify({ photo_id: photoId, degrees }),
   });
   if (!res.ok) throw new Error('Failed to apply rotation');
-  return await res.json();
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
 }
 
 export async function undoEdit(photoId: number): Promise<EditResult> {
+  let result: EditResult;
   if (isTauri) {
     try {
-      return await invoke<EditResult>('undo_edit', { photoId });
+      result = await invoke<EditResult>('undo_edit', { photoId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
     } catch {
       // Fallback
     }
@@ -400,13 +428,18 @@ export async function undoEdit(photoId: number): Promise<EditResult> {
     body: JSON.stringify({ photo_id: photoId }),
   });
   if (!res.ok) throw new Error('Failed to undo edit');
-  return await res.json();
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
 }
 
 export async function redoEdit(photoId: number): Promise<EditResult> {
+  let result: EditResult;
   if (isTauri) {
     try {
-      return await invoke<EditResult>('redo_edit', { photoId });
+      result = await invoke<EditResult>('redo_edit', { photoId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
     } catch {
       // Fallback
     }
@@ -417,13 +450,40 @@ export async function redoEdit(photoId: number): Promise<EditResult> {
     body: JSON.stringify({ photo_id: photoId }),
   });
   if (!res.ok) throw new Error('Failed to redo edit');
-  return await res.json();
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function jumpToEditStep(photoId: number, stepId: number): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('jump_to_step', { photoId, stepId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/step`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, step_id: stepId }),
+  });
+  if (!res.ok) throw new Error('Failed to jump to edit step');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
 }
 
 export async function saveEditSession(photoId: number): Promise<EditSessionState> {
+  let sess: EditSessionState;
   if (isTauri) {
     try {
-      return await invoke<EditSessionState>('save_edit_session', { photoId });
+      sess = await invoke<EditSessionState>('save_edit_session', { photoId });
+      sessionCache.set(photoId, sess);
+      return sess;
     } catch {
       // Fallback
     }
@@ -434,13 +494,18 @@ export async function saveEditSession(photoId: number): Promise<EditSessionState
     body: JSON.stringify({ photo_id: photoId }),
   });
   if (!res.ok) throw new Error('Failed to save edit session');
-  return await res.json();
+  sess = await res.json();
+  sessionCache.set(photoId, sess);
+  return sess;
 }
 
 export async function revertEditSession(photoId: number): Promise<EditResult> {
+  let result: EditResult;
   if (isTauri) {
     try {
-      return await invoke<EditResult>('revert_edit_session', { photoId });
+      result = await invoke<EditResult>('revert_edit_session', { photoId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
     } catch {
       // Fallback
     }
@@ -451,7 +516,9 @@ export async function revertEditSession(photoId: number): Promise<EditResult> {
     body: JSON.stringify({ photo_id: photoId }),
   });
   if (!res.ok) throw new Error('Failed to revert edit session');
-  return await res.json();
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
 }
 
 export async function resolveEditConflict(photoId: number, choice: string): Promise<EditResult> {
@@ -470,5 +537,103 @@ export async function resolveEditConflict(photoId: number, choice: string): Prom
   if (!res.ok) throw new Error('Failed to resolve edit conflict');
   return await res.json();
 }
+
+export async function getCropSuggestions(
+  photoId: number,
+  aspectRatio?: number
+): Promise<CropSuggestion[]> {
+  if (isTauri) {
+    try {
+      return await invoke<CropSuggestion[]>('get_crop_suggestions', {
+        photoId,
+        aspectRatio: aspectRatio ?? null,
+      });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/crop_suggestions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, aspect_ratio: aspectRatio ?? null }),
+  });
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+export async function applyCrop(
+  photoId: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_crop', { photoId, x, y, width, height });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/crop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, x, y, width, height }),
+  });
+  if (!res.ok) throw new Error('Failed to apply crop');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyStraighten(
+  photoId: number,
+  angle: number
+): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_straighten', { photoId, angle });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/straighten`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, angle }),
+  });
+  if (!res.ok) throw new Error('Failed to apply straighten');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function getStraightenSuggestions(
+  photoId: number
+): Promise<StraightenSuggestion[]> {
+  if (isTauri) {
+    try {
+      return await invoke<StraightenSuggestion[]>('get_straighten_suggestions', {
+        photoId,
+      });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/straighten_suggestions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) return [];
+  return await res.json();
+}
+
 
 

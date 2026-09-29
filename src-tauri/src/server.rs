@@ -54,6 +54,38 @@ struct ResolveConflictReq {
     choice: String,
 }
 
+#[derive(Deserialize)]
+struct JumpStepReq {
+    photo_id: i64,
+    step_id: usize,
+}
+
+#[derive(Deserialize)]
+struct CropReq {
+    photo_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+#[derive(Deserialize)]
+struct CropSuggestionsReq {
+    photo_id: i64,
+    aspect_ratio: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct StraightenReq {
+    photo_id: i64,
+    angle: f64,
+}
+
+#[derive(Deserialize)]
+struct StraightenSuggestionsReq {
+    photo_id: i64,
+}
+
 pub fn start_http_server(state: AppState, port: u16) {
     let addr = format!("127.0.0.1:{}", port);
     let server = match Server::http(&addr) {
@@ -484,12 +516,34 @@ fn handle_request(
         }
     }
 
+    // POST /api/edit/step
+    if url == "/api/edit/step" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<JumpStepReq>(&body) {
+            match state.editor.jump_to_step(&state.db, &state.thumbnailer, req.photo_id, req.step_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
     // POST /api/edit/save
     if url == "/api/edit/save" && method == &Method::Post {
         let mut body = String::new();
         let _ = request.as_reader().read_to_string(&mut body);
         if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
-            match state.editor.save_edit_session(&state.db, req.photo_id) {
+            match state.editor.save_edit_session(&state.db, &state.thumbnailer, req.photo_id) {
                 Ok(sess) => {
                     let json = serde_json::to_string(&sess).unwrap_or_default();
                     return Response::from_string(json)
@@ -548,6 +602,100 @@ fn handle_request(
                 }
             }
         }
+    }
+
+    // POST /api/edit/crop_suggestions
+    if url == "/api/edit/crop_suggestions" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<CropSuggestionsReq>(&body) {
+            match state.editor.get_crop_suggestions(&state.db, &state.thumbnailer, req.photo_id, req.aspect_ratio) {
+                Ok(suggestions) => {
+                    let json = serde_json::to_string(&suggestions).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/crop
+    if url == "/api/edit/crop" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<CropReq>(&body) {
+            match state.editor.apply_crop(&state.db, &state.thumbnailer, req.photo_id, req.x, req.y, req.width, req.height) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+    }
+
+    // POST /api/edit/straighten
+    if url == "/api/edit/straighten" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<StraightenReq>(&body) {
+            match state.editor.apply_straighten(&state.db, &state.thumbnailer, req.photo_id, req.angle) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/straighten_suggestions
+    if url == "/api/edit/straighten_suggestions" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<StraightenSuggestionsReq>(&body) {
+            match state.editor.get_straighten_suggestions(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(suggestions) => {
+                    let json = serde_json::to_string(&suggestions).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
     }
 
     // GET /thumb/{hash} (with optional ?r=1 cachebusters)

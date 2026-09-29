@@ -79,6 +79,6 @@
     alt={photo.file_name}
     onload={handleLoad}
     onerror={handleError}
-    class="{className} transition-opacity duration-200 ease-out {isLoaded ? 'opacity-100' : 'opacity-0'}"
+    class="{className} transition-all duration-300 ease-out {isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.97]'}"
   />
 </div>

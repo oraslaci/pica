@@ -37,20 +37,33 @@
     SlidersVertical,
     Pipette,
     ShieldCheck,
+    Bug,
+    FileCode2,
+    Layers,
+    Loader2,
   } from '@lucide/svelte';
-  import type { EditSessionState, Photo } from '../types';
+  import type { CropSuggestion, EditSessionState, Photo, StraightenSuggestion } from '../types';
   import {
     getFullImageUrl,
     getOriginalImageUrl,
+    getPreviewImageUrl,
+    getThumbnailUrl,
     toggleFavorite,
     getEditSession,
     applyRotation,
+    applyCrop,
+    applyStraighten,
+    getCropSuggestions,
+    getStraightenSuggestions,
     undoEdit,
     redoEdit,
     saveEditSession,
     revertEditSession,
     resolveEditConflict,
+    jumpToEditStep,
+    getCachedEditSession,
   } from '../api';
+  import { showEditOverlay } from '../debugStore';
 
   let {
     photos = [],
@@ -80,6 +93,18 @@
 
   // Rotation Animation State (Monotonic cumulative angle for silky smooth continuous physical glide)
   let visualRotation = $state(0);
+  let isTransitioning = $state(false);
+  let transitionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function triggerAnimatedRotation(applyFn: () => void) {
+    if (transitionTimer) clearTimeout(transitionTimer);
+    isTransitioning = true;
+    applyFn();
+    transitionTimer = setTimeout(() => {
+      isTransitioning = false;
+      transitionTimer = null;
+    }, 420);
+  }
 
   // Sidebar & Navigation Tabs
   let isSidebarCollapsed = $state(false);
@@ -92,8 +117,590 @@
   // Basic Fixes Sub-Tools
   type ActiveTool = null | 'crop' | 'straighten' | 'redeye' | 'retouch' | 'text';
   let activeTool = $state<ActiveTool>(null);
-  let cropAspect = $state<'free' | 'square' | '4:3' | '16:9' | '4x6' | '5x7' | '8x10'>('free');
+  type CropAspectPreset = '4x6' | '5x7' | '8x10' | 'square' | '4:3' | '16:9' | 'original' | 'free';
+  let cropAspect = $state<CropAspectPreset>('4x6');
+  let cropOrientation = $state<'portrait' | 'landscape'>('portrait');
+  let cropBox = $state<{ x: number; y: number; width: number; height: number }>({
+    x: 0.1,
+    y: 0.1,
+    width: 0.8,
+    height: 0.8,
+  });
+  let cropSuggestions = $state<CropSuggestion[]>([]);
+  let isLoadingCropSuggestions = $state(false);
+  let isCropPreviewMode = $state(false);
+  let cropPreviewTimer: any = null;
+  let imageContainerRef = $state<HTMLElement | null>(null);
+  let dragHandle = $state<string | null>(null);
+  let dragStartMouse = $state<{ x: number; y: number }>({ x: 0, y: 0 });
+  let dragStartBox = $state<{ x: number; y: number; width: number; height: number }>({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+  });
+
+  let previewScale = $derived.by(() => {
+    const w = Math.max(0.01, cropBox.width);
+    const h = Math.max(0.01, cropBox.height);
+    return Math.min(1 / w, 1 / h);
+  });
+
+  let previewTx = $derived.by(() => {
+    const w = Math.max(0.01, cropBox.width);
+    const cx = cropBox.x + w / 2;
+    return (0.5 - cx) * 100;
+  });
+
+  let previewTy = $derived.by(() => {
+    const h = Math.max(0.01, cropBox.height);
+    const cy = cropBox.y + h / 2;
+    return (0.5 - cy) * 100;
+  });
+
+  let previewClipTop = $derived(cropBox.y * 100);
+  let previewClipRight = $derived((1 - cropBox.x - cropBox.width) * 100);
+  let previewClipBottom = $derived((1 - cropBox.y - cropBox.height) * 100);
+  let previewClipLeft = $derived(cropBox.x * 100);
+
+  function triggerCropPreview() {
+    if (isCropPreviewMode) {
+      cancelCropPreview();
+      return;
+    }
+    isCropPreviewMode = true;
+    if (cropPreviewTimer) clearTimeout(cropPreviewTimer);
+    cropPreviewTimer = setTimeout(() => {
+      isCropPreviewMode = false;
+      cropPreviewTimer = null;
+    }, 2800);
+  }
+
+  function cancelCropPreview() {
+    isCropPreviewMode = false;
+    if (cropPreviewTimer) {
+      clearTimeout(cropPreviewTimer);
+      cropPreviewTimer = null;
+    }
+  }
+
+  function getTargetAspectValue(): number | null {
+    if (cropAspect === 'free') return null;
+    if (cropAspect === 'square') return 1.0;
+    let baseRatio = 1.0;
+    if (cropAspect === '4x6') baseRatio = 4 / 6;
+    else if (cropAspect === '5x7') baseRatio = 5 / 7;
+    else if (cropAspect === '8x10') baseRatio = 8 / 10;
+    else if (cropAspect === '4:3') baseRatio = 4 / 3;
+    else if (cropAspect === '16:9') baseRatio = 16 / 9;
+    else if (cropAspect === 'original') {
+      if (renderedNaturalWidth > 0 && renderedNaturalHeight > 0) {
+        baseRatio = renderedNaturalWidth / renderedNaturalHeight;
+      } else {
+        const isQuarterTurn = Math.abs(Math.round(visualRotation / 90)) % 2 === 1;
+        const nw = currentPhoto?.width || 1;
+        const nh = currentPhoto?.height || 1;
+        baseRatio = isQuarterTurn ? nh / nw : nw / nh;
+      }
+    }
+
+    if (cropOrientation === 'landscape') {
+      return baseRatio < 1 ? 1 / baseRatio : baseRatio;
+    } else {
+      return baseRatio > 1 ? 1 / baseRatio : baseRatio;
+    }
+  }
+
+  function generateFallbackCropSuggestions(targetAspect: number | null): CropSuggestion[] {
+    const imgAspect = activePhotoAspect;
+    const r_norm = targetAspect ? targetAspect / imgAspect : 1.0;
+
+    const makeBox = (id: number, label: string, scale: number, cy_bias: number = 0) => {
+      let w = scale;
+      let h = w / r_norm;
+      if (h > scale) {
+        h = scale;
+        w = h * r_norm;
+      }
+      w = Math.max(0.1, Math.min(0.95, w));
+      h = Math.max(0.1, Math.min(0.95, h));
+      const x = Math.max(0, Math.min(1 - w, 0.5 - w / 2));
+      const y = Math.max(0, Math.min(1 - h, 0.5 - h / 2 + cy_bias));
+      return { id, label, x, y, width: w, height: h };
+    };
+
+    return [
+      makeBox(1, 'Tight Focus', 0.52, -0.05),
+      makeBox(2, 'Rule of Thirds', 0.72, 0.0),
+      makeBox(3, 'Wide Context', 0.88, 0.0),
+    ];
+  }
+
+  function applyAspectToCurrentCropBox(newAspect: typeof cropAspect) {
+    cropAspect = newAspect;
+    const targetAspect = getTargetAspectValue();
+    if (targetAspect == null) {
+      return;
+    }
+
+    const imgAspect = activePhotoAspect;
+    const r_norm = targetAspect / imgAspect;
+    const cx = cropBox.x + cropBox.width / 2;
+    const cy = cropBox.y + cropBox.height / 2;
+
+    let newW = cropBox.width;
+    let newH = newW / r_norm;
+
+    if (newH > 0.95 || newH > cropBox.height * 1.4) {
+      newH = Math.min(0.9, cropBox.height);
+      newW = newH * r_norm;
+    }
+    if (newW > 0.95) {
+      newW = 0.9;
+      newH = newW / r_norm;
+    }
+
+    const clampedW = Math.max(0.05, Math.min(0.95, newW));
+    const clampedH = Math.max(0.05, Math.min(0.95, newH));
+    const clampedX = Math.max(0, Math.min(1 - clampedW, cx - clampedW / 2));
+    const clampedY = Math.max(0, Math.min(1 - clampedH, cy - clampedH / 2));
+
+    cropBox = {
+      x: clampedX,
+      y: clampedY,
+      width: clampedW,
+      height: clampedH,
+    };
+  }
+
+  async function loadCropSuggestions() {
+    if (!currentPhoto?.id) return;
+    const targetAspect = getTargetAspectValue();
+    // Immediately regenerate suggestions for the new aspect ratio so the UI updates with 0ms lag!
+    cropSuggestions = generateFallbackCropSuggestions(targetAspect);
+    isLoadingCropSuggestions = true;
+    try {
+      const suggestions = await getCropSuggestions(currentPhoto.id, targetAspect ?? undefined);
+      if (suggestions && suggestions.length > 0) {
+        cropSuggestions = suggestions;
+      }
+    } catch (err) {
+      console.error('Failed to load crop suggestions:', err);
+    } finally {
+      isLoadingCropSuggestions = false;
+    }
+  }
+
+  async function openCropTool() {
+    cancelCropPreview();
+    // Await any pending rotation/edit writes in the queue
+    await editQueue;
+    if (sessionState?.preview_path) {
+      const targetSrc = getPreviewImageUrl(sessionState.preview_path, cacheBuster);
+      const img = new Image();
+      img.src = targetSrc;
+      try {
+        await img.decode();
+      } catch {}
+    }
+    activeTool = 'crop';
+    applyAspectToCurrentCropBox(cropAspect);
+    loadCropSuggestions();
+  }
+
+  function selectCropSuggestion(sug: CropSuggestion) {
+    cancelCropPreview();
+    cropBox = {
+      x: sug.x,
+      y: sug.y,
+      width: sug.width,
+      height: sug.height,
+    };
+  }
+
+  function rotateCropOrientation() {
+    cancelCropPreview();
+    cropOrientation = cropOrientation === 'landscape' ? 'portrait' : 'landscape';
+    applyAspectToCurrentCropBox(cropAspect);
+    loadCropSuggestions();
+  }
+
+  function resetCrop() {
+    cancelCropPreview();
+    cropBox = { x: 0, y: 0, width: 1.0, height: 1.0 };
+    applyAspectToCurrentCropBox(cropAspect);
+  }
+
+  async function handleApplyCrop() {
+    cancelCropPreview();
+    if (!currentPhoto?.id) return;
+    const photoId = currentPhoto.id;
+    const box = { ...cropBox };
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await applyCrop(
+          photoId,
+          box.x,
+          box.y,
+          box.width,
+          box.height
+        );
+        if (res.success && res.session_state) {
+          if (res.session_state.preview_path) {
+            const nextSrc = getPreviewImageUrl(res.session_state.preview_path, Date.now());
+            const img = new Image();
+            img.src = nextSrc;
+            try {
+              await img.decode();
+            } catch {}
+          }
+          sessionState = res.session_state;
+          cacheBuster = Date.now();
+          activeTool = null;
+          showToast('Crop applied');
+          onPhotoEdited();
+        } else {
+          activeTool = null;
+          showToast(res.message || 'Failed to apply crop');
+        }
+      } catch (err: any) {
+        activeTool = null;
+        showToast(err?.message || 'Failed to apply crop');
+      } finally {
+        isEditing = false;
+      }
+    });
+  }
+
+  function handleCancelCrop() {
+    cancelCropPreview();
+    activeTool = null;
+  }
+
+  function startDrag(e: PointerEvent, handle: string) {
+    e.stopPropagation();
+    e.preventDefault();
+    dragHandle = handle;
+    dragStartMouse = { x: e.clientX, y: e.clientY };
+    dragStartBox = { ...cropBox };
+    window.addEventListener('pointermove', onWindowPointerMove);
+    window.addEventListener('pointerup', onWindowPointerUp);
+  }
+
+  function handleCanvasPointerDown(e: PointerEvent) {
+    if (isCropPreviewMode || !imageContainerRef) return;
+    const rect = imageContainerRef.getBoundingClientRect();
+    const startX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const startY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+    if (
+      startX >= cropBox.x &&
+      startX <= cropBox.x + cropBox.width &&
+      startY >= cropBox.y &&
+      startY <= cropBox.y + cropBox.height
+    ) {
+      startDrag(e, 'move');
+      return;
+    }
+
+    const targetAspect = getTargetAspectValue();
+    const imgAspect = rect.width / rect.height;
+    const initialW = 0.05;
+    const initialH = targetAspect ? initialW * (imgAspect / targetAspect) : 0.05;
+
+    cropBox = {
+      x: Math.min(startX, 1 - initialW),
+      y: Math.min(startY, 1 - initialH),
+      width: initialW,
+      height: initialH,
+    };
+    dragStartMouse = { x: e.clientX, y: e.clientY };
+    dragStartBox = { ...cropBox };
+    dragHandle = 'se';
+    window.addEventListener('pointermove', onWindowPointerMove);
+    window.addEventListener('pointerup', onWindowPointerUp);
+  }
+
+  function onWindowPointerMove(e: PointerEvent) {
+    if (!dragHandle || !imageContainerRef) return;
+    const rect = imageContainerRef.getBoundingClientRect();
+    const dx = (e.clientX - dragStartMouse.x) / rect.width;
+    const dy = (e.clientY - dragStartMouse.y) / rect.height;
+    const imgAspect = rect.width / rect.height;
+    const targetAspect = getTargetAspectValue();
+
+    if (dragHandle === 'move') {
+      let newX = dragStartBox.x + dx;
+      let newY = dragStartBox.y + dy;
+
+      // Magnetic edge snapping: cleanly snap to photo borders within 1.5%
+      const snapThresh = 0.015;
+      if (Math.abs(newX) < snapThresh) newX = 0;
+      if (Math.abs(newX + dragStartBox.width - 1) < snapThresh) newX = 1 - dragStartBox.width;
+      if (Math.abs(newY) < snapThresh) newY = 0;
+      if (Math.abs(newY + dragStartBox.height - 1) < snapThresh) newY = 1 - dragStartBox.height;
+
+      // Magnetic center snapping: snap to 50% line within 1.2%
+      const cx = newX + dragStartBox.width / 2;
+      const cy = newY + dragStartBox.height / 2;
+      if (Math.abs(cx - 0.5) < 0.012) newX = 0.5 - dragStartBox.width / 2;
+      if (Math.abs(cy - 0.5) < 0.012) newY = 0.5 - dragStartBox.height / 2;
+
+      newX = Math.max(0, Math.min(1 - dragStartBox.width, newX));
+      newY = Math.max(0, Math.min(1 - dragStartBox.height, newY));
+      cropBox = { ...cropBox, x: newX, y: newY };
+      return;
+    }
+
+    if (dragHandle === 'se') {
+      if (targetAspect == null) {
+        const newW = Math.max(0.05, Math.min(1 - dragStartBox.x, dragStartBox.width + dx));
+        const newH = Math.max(0.05, Math.min(1 - dragStartBox.y, dragStartBox.height + dy));
+        cropBox = { ...cropBox, width: newW, height: newH };
+      } else {
+        let newW = Math.max(0.05, dragStartBox.width + dx);
+        let newH = newW * (imgAspect / targetAspect);
+        if (dragStartBox.x + newW > 1) {
+          newW = 1 - dragStartBox.x;
+          newH = newW * (imgAspect / targetAspect);
+        }
+        if (dragStartBox.y + newH > 1) {
+          newH = 1 - dragStartBox.y;
+          newW = newH / (imgAspect / targetAspect);
+        }
+        cropBox = { ...cropBox, width: Math.max(0.05, newW), height: Math.max(0.05, newH) };
+      }
+      return;
+    }
+
+    if (dragHandle === 'nw') {
+      const right = dragStartBox.x + dragStartBox.width;
+      const bottom = dragStartBox.y + dragStartBox.height;
+      if (targetAspect == null) {
+        const newX = Math.min(right - 0.05, Math.max(0, dragStartBox.x + dx));
+        const newY = Math.min(bottom - 0.05, Math.max(0, dragStartBox.y + dy));
+        cropBox = { x: newX, y: newY, width: right - newX, height: bottom - newY };
+      } else {
+        let newW = Math.max(0.05, dragStartBox.width - dx);
+        let newH = newW * (imgAspect / targetAspect);
+        if (right - newW < 0) {
+          newW = right;
+          newH = newW * (imgAspect / targetAspect);
+        }
+        if (bottom - newH < 0) {
+          newH = bottom;
+          newW = newH / (imgAspect / targetAspect);
+        }
+        cropBox = { x: right - newW, y: bottom - newH, width: newW, height: newH };
+      }
+      return;
+    }
+
+    if (dragHandle === 'ne') {
+      const left = dragStartBox.x;
+      const bottom = dragStartBox.y + dragStartBox.height;
+      if (targetAspect == null) {
+        const newW = Math.max(0.05, Math.min(1 - left, dragStartBox.width + dx));
+        const newY = Math.min(bottom - 0.05, Math.max(0, dragStartBox.y + dy));
+        cropBox = { x: left, y: newY, width: newW, height: bottom - newY };
+      } else {
+        let newW = Math.max(0.05, dragStartBox.width + dx);
+        let newH = newW * (imgAspect / targetAspect);
+        if (left + newW > 1) {
+          newW = 1 - left;
+          newH = newW * (imgAspect / targetAspect);
+        }
+        if (bottom - newH < 0) {
+          newH = bottom;
+          newW = newH / (imgAspect / targetAspect);
+        }
+        cropBox = { x: left, y: bottom - newH, width: newW, height: newH };
+      }
+      return;
+    }
+
+    if (dragHandle === 'sw') {
+      const right = dragStartBox.x + dragStartBox.width;
+      const top = dragStartBox.y;
+      if (targetAspect == null) {
+        const newX = Math.min(right - 0.05, Math.max(0, dragStartBox.x + dx));
+        const newH = Math.max(0.05, Math.min(1 - top, dragStartBox.height + dy));
+        cropBox = { x: newX, y: top, width: right - newX, height: newH };
+      } else {
+        let newW = Math.max(0.05, dragStartBox.width - dx);
+        let newH = newW * (imgAspect / targetAspect);
+        if (right - newW < 0) {
+          newW = right;
+          newH = newW * (imgAspect / targetAspect);
+        }
+        if (top + newH > 1) {
+          newH = 1 - top;
+          newW = newH / (imgAspect / targetAspect);
+        }
+        cropBox = { x: right - newW, y: top, width: newW, height: newH };
+      }
+      return;
+    }
+
+    if (dragHandle === 'n' || dragHandle === 's') {
+      if (targetAspect == null) {
+        if (dragHandle === 'n') {
+          const newY = Math.min(dragStartBox.y + dragStartBox.height - 0.05, Math.max(0, dragStartBox.y + dy));
+          cropBox = { ...cropBox, y: newY, height: dragStartBox.y + dragStartBox.height - newY };
+        } else {
+          const newH = Math.max(0.05, Math.min(1 - dragStartBox.y, dragStartBox.height + dy));
+          cropBox = { ...cropBox, height: newH };
+        }
+      } else {
+        const newH = Math.max(0.05, Math.min(1 - dragStartBox.y, dragStartBox.height + (dragHandle === 's' ? dy : -dy)));
+        const newW = newH / (imgAspect / targetAspect);
+        const centerX = dragStartBox.x + dragStartBox.width / 2;
+        const newX = Math.max(0, Math.min(1 - newW, centerX - newW / 2));
+        const newY = dragHandle === 's' ? dragStartBox.y : Math.max(0, dragStartBox.y + dragStartBox.height - newH);
+        cropBox = { x: newX, y: newY, width: Math.max(0.05, newW), height: Math.max(0.05, newH) };
+      }
+      return;
+    }
+
+    if (dragHandle === 'e' || dragHandle === 'w') {
+      if (targetAspect == null) {
+        if (dragHandle === 'w') {
+          const newX = Math.min(dragStartBox.x + dragStartBox.width - 0.05, Math.max(0, dragStartBox.x + dx));
+          cropBox = { ...cropBox, x: newX, width: dragStartBox.x + dragStartBox.width - newX };
+        } else {
+          const newW = Math.max(0.05, Math.min(1 - dragStartBox.x, dragStartBox.width + dx));
+          cropBox = { ...cropBox, width: newW };
+        }
+      } else {
+        const newW = Math.max(0.05, Math.min(1 - dragStartBox.x, dragStartBox.width + (dragHandle === 'e' ? dx : -dx)));
+        const newH = newW * (imgAspect / targetAspect);
+        const centerY = dragStartBox.y + dragStartBox.height / 2;
+        const newY = Math.max(0, Math.min(1 - newH, centerY - newH / 2));
+        const newX = dragHandle === 'e' ? dragStartBox.x : Math.max(0, dragStartBox.x + dragStartBox.width - newW);
+        cropBox = { x: newX, y: newY, width: Math.max(0.05, newW), height: Math.max(0.05, newH) };
+      }
+      return;
+    }
+  }
+
+  function onWindowPointerUp() {
+    dragHandle = null;
+    window.removeEventListener('pointermove', onWindowPointerMove);
+    window.removeEventListener('pointerup', onWindowPointerUp);
+  }
+
   let straightenAngle = $state(0);
+  let straightenSuggestions = $state<StraightenSuggestion[]>([]);
+  let isLoadingStraightenSuggestions = $state(false);
+
+  function getStraightenZoom(angleDeg: number, aspect: number): number {
+    if (Math.abs(angleDeg) < 0.001) return 1.0;
+    const rad = Math.abs((angleDeg * Math.PI) / 180);
+    const a = aspect > 0 ? aspect : 1.333;
+    const maxRatio = Math.max(a, 1 / a);
+    return Math.cos(rad) + Math.sin(rad) * maxRatio;
+  }
+
+  function formatStraightenAngle(ang: number): string {
+    const rounded = Math.abs(ang) < 0.05 ? 0 : Math.round(ang * 10) / 10;
+    return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}°`;
+  }
+
+  function generateFallbackStraightenSuggestions(): StraightenSuggestion[] {
+    return [
+      { id: 1, label: 'Horizon', angle: 0.0, confidence: 0.5, description: 'Neutral horizon alignment' },
+      { id: 2, label: 'Subtle', angle: 1.0, confidence: 0.4, description: 'Minor tilt adjustment' },
+      { id: 3, label: 'Alternative', angle: -1.0, confidence: 0.3, description: 'Counter-tilt adjustment' },
+    ];
+  }
+
+  async function loadStraightenSuggestions() {
+    if (!currentPhoto?.id) return;
+    straightenSuggestions = generateFallbackStraightenSuggestions();
+    isLoadingStraightenSuggestions = true;
+    try {
+      const suggestions = await getStraightenSuggestions(currentPhoto.id);
+      if (suggestions && suggestions.length > 0) {
+        straightenSuggestions = suggestions;
+      }
+    } catch (err) {
+      console.error('Failed to load straighten suggestions:', err);
+    } finally {
+      isLoadingStraightenSuggestions = false;
+    }
+  }
+
+  function selectStraightenSuggestion(sug: StraightenSuggestion) {
+    straightenAngle = sug.angle;
+  }
+
+  async function openStraightenTool() {
+    if (activeTool === 'straighten') {
+      handleCancelStraighten();
+      return;
+    }
+    cancelCropPreview();
+    await editQueue;
+    if (sessionState?.preview_path) {
+      const targetSrc = getPreviewImageUrl(sessionState.preview_path, cacheBuster);
+      const img = new Image();
+      img.src = targetSrc;
+      try {
+        await img.decode();
+      } catch {}
+    }
+    straightenAngle = 0;
+    activeTool = 'straighten';
+    loadStraightenSuggestions();
+  }
+
+  async function handleApplyStraighten() {
+    if (!currentPhoto?.id || Math.abs(straightenAngle) < 0.01) {
+      activeTool = null;
+      straightenAngle = 0;
+      return;
+    }
+    const photoId = currentPhoto.id;
+    const angleToApply = straightenAngle;
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await applyStraighten(photoId, angleToApply);
+        if (res.success && res.session_state) {
+          if (res.session_state.preview_path) {
+            const nextSrc = getPreviewImageUrl(res.session_state.preview_path, Date.now());
+            const img = new Image();
+            img.src = nextSrc;
+            try {
+              await img.decode();
+            } catch {}
+          }
+          sessionState = res.session_state;
+          cacheBuster = Date.now();
+          activeTool = null;
+          straightenAngle = 0;
+          showToast(`Straighten ${angleToApply > 0 ? '+' : ''}${angleToApply}° applied`);
+          onPhotoEdited();
+        } else {
+          activeTool = null;
+          straightenAngle = 0;
+          showToast(res.message || 'Failed to apply straighten');
+        }
+      } catch (err: any) {
+        activeTool = null;
+        straightenAngle = 0;
+        showToast(err?.message || 'Failed to apply straighten');
+      } finally {
+        isEditing = false;
+      }
+    });
+  }
+
+  function handleCancelStraighten() {
+    straightenAngle = 0;
+    activeTool = null;
+  }
   let redEyeRadius = $state(28);
   let retouchRadius = $state(32);
   let overlayText = $state('');
@@ -131,11 +738,146 @@
 
   const currentPhoto = $derived(photos[activeIndex] || null);
 
+  // Edit action queue: strictly serializes all backend persistence operations
+  // (rotations, crops, undo, redo, revert) to prevent file system collisions,
+  // lost updates, or out-of-order session manifests when user clicks rapidly.
+  let editQueue: Promise<void> = Promise.resolve();
+
+  function enqueueEdit<T>(action: () => Promise<T>): Promise<T> {
+    const run = editQueue.then(action, action);
+    editQueue = run.then(() => {}, () => {});
+    return run;
+  }
+
+  // Active base step for raster operations: tracks pixel-altering operations (like crops).
+  // Pure rotations do not alter the base raster image; they are rotated smoothly on the GPU via CSS.
+  let activeBaseStep = $derived.by(() => {
+    if (!sessionState?.has_session || !sessionState.steps || sessionState.current_step === 0) {
+      return null;
+    }
+    const maxIdx = Math.min(sessionState.current_step, sessionState.steps.length - 1);
+    for (let i = maxIdx; i >= 1; i--) {
+      const step = sessionState.steps[i];
+      if (step.op !== 'rotate' && step.render_file) {
+        return step;
+      }
+    }
+    return null;
+  });
+
+  // Natural image dimensions and loading state measured from the currently loaded image
+  let mainImgRef = $state<HTMLImageElement | null>(null);
+  let renderedNaturalWidth = $state(0);
+  let renderedNaturalHeight = $state(0);
+  let isMainImageLoading = $state(false);
+  let isCropHovered = $state(false);
+
+  function handleImageLoaded(img: HTMLImageElement) {
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      renderedNaturalWidth = img.naturalWidth;
+      renderedNaturalHeight = img.naturalHeight;
+    }
+    isMainImageLoading = false;
+  }
+
+  $effect(() => {
+    if (mainImgRef?.complete && mainImgRef.naturalWidth > 0 && mainImgRef.naturalHeight > 0) {
+      renderedNaturalWidth = mainImgRef.naturalWidth;
+      renderedNaturalHeight = mainImgRef.naturalHeight;
+      isMainImageLoading = false;
+    }
+  });
+
+  let activeImageSrc = $derived.by(() => {
+    if (!currentPhoto) return '';
+    // When cropping or straightening, we render the current step's physical proxy (which has all prior rotations baked in)
+    // with 0deg canvas rotation so the user edits in standard unrotated 2D screen space!
+    if ((activeTool === 'crop' || activeTool === 'straighten') && sessionState?.has_session && sessionState.preview_path) {
+      return getPreviewImageUrl(sessionState.preview_path, cacheBuster);
+    }
+    if (activeBaseStep && sessionState?.session_dir && activeBaseStep.render_file) {
+      const stepPath = `${sessionState.session_dir}/${activeBaseStep.render_file}`;
+      return getPreviewImageUrl(stepPath, cacheBuster);
+    }
+    return getFullImageUrl(currentPhoto, cacheBuster);
+  });
+
+  let previewThumbSrc = $derived.by(() => {
+    if (!currentPhoto) return '';
+    if (sessionState?.has_session && sessionState.current_step > 0 && sessionState.preview_path) {
+      return getPreviewImageUrl(sessionState.preview_path, cacheBuster);
+    }
+    return getThumbnailUrl(currentPhoto, cacheBuster);
+  });
+
+  let activePhotoAspect = $derived.by(() => {
+    if (activeTool === 'crop' || activeTool === 'straighten') {
+      if (renderedNaturalWidth > 0 && renderedNaturalHeight > 0) {
+        return renderedNaturalWidth / renderedNaturalHeight;
+      }
+      const isQuarterTurn = Math.abs(Math.round(visualRotation / 90)) % 2 === 1;
+      const pw = currentPhoto?.width || 1;
+      const ph = currentPhoto?.height || 1;
+      return isQuarterTurn ? ph / pw : pw / ph;
+    }
+
+    if (activeBaseStep?.params && typeof activeBaseStep.params === 'object') {
+      const p = activeBaseStep.params as { width?: number; height?: number };
+      if (p.width && p.height && currentPhoto?.width && currentPhoto?.height) {
+        const w = currentPhoto.width * p.width;
+        const h = currentPhoto.height * p.height;
+        if (h > 0) return w / h;
+      }
+    }
+    if (renderedNaturalWidth > 0 && renderedNaturalHeight > 0) {
+      return renderedNaturalWidth / renderedNaturalHeight;
+    }
+    if (currentPhoto?.width && currentPhoto?.height && currentPhoto.height > 0) {
+      return currentPhoto.width / currentPhoto.height;
+    }
+    if (imageContainerRef) {
+      const rect = imageContainerRef.getBoundingClientRect();
+      if (rect.height > 0) return rect.width / rect.height;
+    }
+    return 1.333;
+  });
+
+  let straightenZoom = $derived(getStraightenZoom(straightenAngle, activePhotoAspect));
+
+  let effectiveCanvasRotation = $derived.by(() => {
+    if (activeTool === 'crop' || activeTool === 'straighten') {
+      return 0;
+    }
+    const bakedRotation = activeBaseStep?.cumulative_rotation ?? 0;
+    const baseRotation = visualRotation - bakedRotation;
+    return baseRotation;
+  });
+
+  // Helper: Computes the continuous angle nearest to currentAngle that matches targetNorm (0, 90, 180, 270)
+  // Prevents spinning 270 degrees in reverse when crossing between 270° and 0°!
+  function snapToNearestAngle(currentAngle: number, targetNorm: number): number {
+    const normTarget = ((targetNorm % 360) + 360) % 360;
+    const normCurrent = ((currentAngle % 360) + 360) % 360;
+    let delta = normTarget - normCurrent;
+    if (delta > 180) delta -= 360;
+    if (delta <= -180) delta += 360;
+    return currentAngle + delta;
+  }
+
   // Reset tool & slider states when navigating to a new photo
-  function resetLocalToolState() {
-    visualRotation = 0;
+  function resetLocalToolState(photo?: Photo | null) {
+    if (transitionTimer) {
+      clearTimeout(transitionTimer);
+      transitionTimer = null;
+    }
+    isTransitioning = false;
+    // Immediately initialize to the photo's known draft rotation or cached session rotation (eliminates FOUC)
+    const initialRot = photo?.edit_rotation ?? (photo ? getCachedEditSession(photo.id)?.cumulative_rotation : null) ?? 0;
+    visualRotation = initialRot;
     straightenAngle = 0;
     activeTool = null;
+    renderedNaturalWidth = 0;
+    renderedNaturalHeight = 0;
     fillLight = 0;
     highlights = 0;
     shadows = 0;
@@ -146,20 +888,41 @@
 
   async function loadSession() {
     if (!currentPhoto) return;
+    const targetPhotoId = currentPhoto.id;
     try {
-      const sess = await getEditSession(currentPhoto.id);
+      const sess = await getEditSession(targetPhotoId);
+      if (currentPhoto?.id !== targetPhotoId) return;
       sessionState = sess;
+      if (sess.has_session && !sess.is_committed) {
+        // Without CSS transition animation, cleanly sync the angle
+        visualRotation = snapToNearestAngle(visualRotation, sess.cumulative_rotation);
+      }
     } catch {
-      sessionState = null;
+      if (currentPhoto?.id === targetPhotoId) {
+        sessionState = null;
+      }
     }
   }
 
+  let lastPhotoId: number | null = null;
   $effect(() => {
     if (currentPhoto && isOpen) {
-      isFav = currentPhoto.is_favorite;
-      isZoomed100 = false;
-      resetLocalToolState();
-      loadSession();
+      if (currentPhoto.id !== lastPhotoId) {
+        lastPhotoId = currentPhoto.id;
+        isMainImageLoading = true;
+        editQueue = Promise.resolve();
+        isFav = currentPhoto.is_favorite;
+        isZoomed100 = false;
+        resetLocalToolState(currentPhoto);
+        loadSession();
+      }
+    } else if (!isOpen) {
+      lastPhotoId = null;
+      if (transitionTimer) {
+        clearTimeout(transitionTimer);
+        transitionTimer = null;
+      }
+      isTransitioning = false;
     }
   });
 
@@ -205,23 +968,25 @@
   // Responsive Fit Scaling: Calculates the scale needed when image is rotated by 90° or 270°
   // so the rotated bounds fit gracefully inside the canvas without overflowing or clipping.
   const fitScale = $derived.by(() => {
-    const isQuarterTurn = Math.abs(Math.round(visualRotation / 90)) % 2 === 1;
-    if (!isQuarterTurn || !currentPhoto?.width || !currentPhoto?.height || !canvasWidth || !canvasHeight) {
+    const isQuarterTurn = Math.abs(Math.round(effectiveCanvasRotation / 90)) % 2 === 1;
+    if (!isQuarterTurn || !canvasWidth || !canvasHeight) {
       return 1;
     }
     const padding = 48;
     const availW = Math.max(100, canvasWidth - padding);
     const availH = Math.max(100, canvasHeight - padding);
 
-    const imgAspect = currentPhoto.width / currentPhoto.height;
+    const aspect = activePhotoAspect;
+    if (!aspect || aspect <= 0) return 1;
+
     let baseW: number;
     let baseH: number;
-    if (availW / availH > imgAspect) {
+    if (availW / availH > aspect) {
       baseH = availH;
-      baseW = availH * imgAspect;
+      baseW = availH * aspect;
     } else {
       baseW = availW;
-      baseH = availW / imgAspect;
+      baseH = availW / aspect;
     }
 
     // Swapped visual dimensions on 90° / 270°
@@ -359,115 +1124,166 @@
 
   // Continuous Physical Rotation: increments monotonic visualRotation smoothly over 380ms
   async function handleRotate(deg: number) {
-    if (!currentPhoto) return;
+    if (!currentPhoto || activeTool === 'crop') return;
+    const photoId = currentPhoto.id;
 
-    // 1. Instant friendly physical glide on client canvas
-    visualRotation += deg;
+    // 1. Smooth physical glide on client canvas immediately (0ms latency visual feedback)
+    triggerAnimatedRotation(() => {
+      visualRotation += deg;
+    });
 
-    // 2. Perform background write & update without forcing a reload flicker or backwards spin
-    isEditing = true;
-    try {
-      const res = await applyRotation(currentPhoto.id, deg);
-      if (res.success && res.photo) {
-        currentPhoto.file_hash = res.photo.file_hash;
-        currentPhoto.file_size = res.photo.file_size;
-        currentPhoto.width = res.photo.width;
-        currentPhoto.height = res.photo.height;
-        sessionState = res.session_state;
-        onPhotoEdited();
-      } else if (res.session_state?.has_conflict) {
-        sessionState = res.session_state;
+    // 2. Perform background write & update sequentially through the queue
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await applyRotation(photoId, deg);
+        if (res.success && res.photo) {
+          sessionState = res.session_state;
+          if (currentPhoto && currentPhoto.id === photoId) {
+            currentPhoto.edit_rotation = res.session_state?.cumulative_rotation ?? 0;
+          }
+        } else if (res.session_state?.has_conflict) {
+          sessionState = res.session_state;
+        }
+      } catch (e) {
+        console.error('Failed to rotate:', e);
+        showToast('Error rotating image');
+      } finally {
+        isEditing = false;
       }
-    } catch (e) {
-      console.error('Failed to rotate:', e);
-      showToast('Error rotating image');
-    } finally {
-      isEditing = false;
-    }
+    });
   }
 
   async function handleUndo() {
     if (!currentPhoto || !sessionState?.can_undo) return;
-    isEditing = true;
-    try {
-      const res = await undoEdit(currentPhoto.id);
-      if (res.success && res.photo) {
-        currentPhoto.file_hash = res.photo.file_hash;
-        currentPhoto.file_size = res.photo.file_size;
-        currentPhoto.width = res.photo.width;
-        currentPhoto.height = res.photo.height;
-        sessionState = res.session_state;
-        visualRotation -= 90;
-        showToast('Undo applied');
-        onPhotoEdited();
+    const photoId = currentPhoto.id;
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await undoEdit(photoId);
+        if (res.success) {
+          sessionState = res.session_state;
+          if (currentPhoto && currentPhoto.id === photoId) {
+            currentPhoto.edit_rotation = res.session_state?.cumulative_rotation ?? 0;
+          }
+          triggerAnimatedRotation(() => {
+            visualRotation = snapToNearestAngle(visualRotation, res.session_state.cumulative_rotation);
+          });
+          showToast('Undo applied');
+        }
+      } catch (e) {
+        console.error('Failed to undo:', e);
+      } finally {
+        isEditing = false;
       }
-    } catch (e) {
-      console.error('Failed to undo:', e);
-    } finally {
-      isEditing = false;
-    }
+    });
   }
 
   async function handleRedo() {
     if (!currentPhoto || !sessionState?.can_redo) return;
-    isEditing = true;
-    try {
-      const res = await redoEdit(currentPhoto.id);
-      if (res.success && res.photo) {
-        currentPhoto.file_hash = res.photo.file_hash;
-        currentPhoto.file_size = res.photo.file_size;
-        currentPhoto.width = res.photo.width;
-        currentPhoto.height = res.photo.height;
-        sessionState = res.session_state;
-        visualRotation += 90;
-        showToast('Redo applied');
-        onPhotoEdited();
+    const photoId = currentPhoto.id;
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await redoEdit(photoId);
+        if (res.success) {
+          sessionState = res.session_state;
+          if (currentPhoto && currentPhoto.id === photoId) {
+            currentPhoto.edit_rotation = res.session_state?.cumulative_rotation ?? 0;
+          }
+          triggerAnimatedRotation(() => {
+            visualRotation = snapToNearestAngle(visualRotation, res.session_state.cumulative_rotation);
+          });
+          showToast('Redo applied');
+        }
+      } catch (e) {
+        console.error('Failed to redo:', e);
+      } finally {
+        isEditing = false;
       }
-    } catch (e) {
-      console.error('Failed to redo:', e);
-    } finally {
-      isEditing = false;
-    }
+    });
+  }
+
+  async function handleJumpToStep(stepId: number) {
+    if (!currentPhoto || stepId === sessionState?.current_step) return;
+    const photoId = currentPhoto.id;
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await jumpToEditStep(photoId, stepId);
+        if (res.success) {
+          sessionState = res.session_state;
+          if (currentPhoto && currentPhoto.id === photoId) {
+            currentPhoto.edit_rotation = res.session_state?.cumulative_rotation ?? 0;
+          }
+          triggerAnimatedRotation(() => {
+            visualRotation = snapToNearestAngle(visualRotation, res.session_state.cumulative_rotation);
+          });
+          showToast(`Jumped to step #${stepId}`);
+        }
+      } catch (e) {
+        console.error('Failed to jump to step:', e);
+      } finally {
+        isEditing = false;
+      }
+    });
   }
 
   async function handleSaveSession() {
     if (!currentPhoto) return;
-    isEditing = true;
-    try {
-      const sess = await saveEditSession(currentPhoto.id);
-      sessionState = sess;
-      showToast('Edits saved to disk');
-      onPhotoEdited();
-    } catch (e) {
-      console.error('Failed to save session:', e);
-      showToast('Error saving edits');
-    } finally {
-      isEditing = false;
-    }
+    const photoId = currentPhoto.id;
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const sess = await saveEditSession(photoId);
+        sessionState = sess;
+        if (currentPhoto && currentPhoto.id === photoId) {
+          currentPhoto.edit_rotation = 0;
+        }
+        isTransitioning = false;
+        visualRotation = 0;
+        cacheBuster = Date.now();
+        showToast('Edits saved to disk');
+        onPhotoEdited();
+      } catch (e) {
+        console.error('Failed to save session:', e);
+        showToast('Error saving edits');
+      } finally {
+        isEditing = false;
+      }
+    });
   }
 
   async function handleRevert() {
     if (!currentPhoto) return;
-    isEditing = true;
-    try {
-      const res = await revertEditSession(currentPhoto.id);
-      if (res.success && res.photo) {
-        currentPhoto.file_hash = res.photo.file_hash;
-        currentPhoto.file_size = res.photo.file_size;
-        currentPhoto.width = res.photo.width;
-        currentPhoto.height = res.photo.height;
-        sessionState = res.session_state;
-        visualRotation = 0;
-        resetLocalToolState();
-        showToast('Reverted to original photo');
-        onPhotoEdited();
+    const photoId = currentPhoto.id;
+    enqueueEdit(async () => {
+      isEditing = true;
+      try {
+        const res = await revertEditSession(photoId);
+        if (res.success && res.photo) {
+          if (currentPhoto && currentPhoto.id === photoId) {
+            currentPhoto.file_hash = res.photo.file_hash;
+            currentPhoto.file_size = res.photo.file_size;
+            currentPhoto.width = res.photo.width;
+            currentPhoto.height = res.photo.height;
+            currentPhoto.edit_rotation = 0;
+            sessionState = res.session_state;
+            isTransitioning = false;
+            visualRotation = 0;
+            cacheBuster = Date.now();
+            resetLocalToolState(currentPhoto);
+          }
+          showToast('Reverted to original photo');
+          onPhotoEdited();
+        }
+      } catch (e) {
+        console.error('Failed to revert:', e);
+        showToast('Error reverting to original');
+      } finally {
+        isEditing = false;
       }
-    } catch (e) {
-      console.error('Failed to revert:', e);
-      showToast('Error reverting to original');
-    } finally {
-      isEditing = false;
-    }
+    });
   }
 
   async function handleResolveConflict(choice: string) {
@@ -514,11 +1330,20 @@
     const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
     if (e.key === 'Escape') {
+      if (isCropPreviewMode) {
+        cancelCropPreview();
+        return;
+      }
       if (activeTool !== null) {
-        activeTool = null;
+        handleCancelCrop();
       } else {
         isOpen = false;
         onClose();
+      }
+    } else if (e.key === 'Enter') {
+      if (activeTool === 'crop') {
+        e.preventDefault();
+        handleApplyCrop();
       }
     } else if (isCtrlOrCmd && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -534,12 +1359,36 @@
       e.preventDefault();
       handleSaveSession();
     } else if (e.key === 'ArrowRight' || e.key === 'j') {
-      nextPhoto();
+      if (activeTool === 'crop') {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.05 : 0.01;
+        cropBox = { ...cropBox, x: Math.min(1 - cropBox.width, cropBox.x + step) };
+      } else {
+        nextPhoto();
+      }
     } else if (e.key === 'ArrowLeft' || e.key === 'k') {
-      prevPhoto();
+      if (activeTool === 'crop') {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.05 : 0.01;
+        cropBox = { ...cropBox, x: Math.max(0, cropBox.x - step) };
+      } else {
+        prevPhoto();
+      }
+    } else if (e.key === 'ArrowUp' && activeTool === 'crop') {
+      e.preventDefault();
+      const step = e.shiftKey ? 0.05 : 0.01;
+      cropBox = { ...cropBox, y: Math.max(0, cropBox.y - step) };
+    } else if (e.key === 'ArrowDown' && activeTool === 'crop') {
+      e.preventDefault();
+      const step = e.shiftKey ? 0.05 : 0.01;
+      cropBox = { ...cropBox, y: Math.min(1 - cropBox.height, cropBox.y + step) };
     } else if (e.key === ' ') {
       e.preventDefault();
-      toggleZoom();
+      if (isCropPreviewMode) {
+        cancelCropPreview();
+      } else {
+        toggleZoom();
+      }
     } else if (e.key === 'f') {
       handleToggleFav();
     } else if (e.key === 'r') {
@@ -561,7 +1410,10 @@
 
   onDestroy(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('pointermove', onWindowPointerMove);
+    window.removeEventListener('pointerup', onWindowPointerUp);
     if (toastTimer) clearTimeout(toastTimer);
+    if (cropPreviewTimer) clearTimeout(cropPreviewTimer);
   });
 
   function formatBytes(bytes: number) {
@@ -665,96 +1517,276 @@
         </button>
       </div>
 
-      <!-- 5 Picasa Editing Tabs (Icons with tooltips) -->
-      <div class="grid grid-cols-5 border-b border-[#2d2d34] bg-[#16161a]">
-        <!-- Tab 1: Basic Fixes -->
-        <button
-          onclick={() => {
-            activeTab = 'basic';
-            activeTool = null;
-          }}
-          class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'basic'
-              ? 'border-blue-500 text-blue-400 bg-[#22222a]'
-              : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
-          }`}
-          title="Basic Fixes (Wrench): Crop, Straighten, Red Eye, Auto-fix, Retouch, Text"
-        >
-          <Wrench class="w-4 h-4 mb-0.5" />
-          <span class="text-[10px] font-medium tracking-tight">Basic</span>
-        </button>
+      <!-- 5 Picasa Editing Tabs (Icons with tooltips) or Dedicated Crop Header -->
+      {#if activeTool === 'crop'}
+        <div class="px-4 py-3 border-b border-[#2d2d34] bg-[#16161a] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Crop class="w-4 h-4 text-emerald-400" />
+            <span class="font-bold text-xs tracking-wider uppercase text-neutral-100">Crop Photo</span>
+          </div>
+          <button
+            type="button"
+            onclick={handleCancelCrop}
+            class="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Cancel Crop (Esc)"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+      {:else}
+        <div class="grid grid-cols-5 border-b border-[#2d2d34] bg-[#16161a]">
+          <!-- Tab 1: Basic Fixes -->
+          <button
+            onclick={() => {
+              activeTab = 'basic';
+              activeTool = null;
+            }}
+            class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'basic'
+                ? 'border-blue-500 text-blue-400 bg-[#22222a]'
+                : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+            }`}
+            title="Basic Fixes (Wrench): Crop, Straighten, Red Eye, Auto-fix, Retouch, Text"
+          >
+            <Wrench class="w-4 h-4 mb-0.5" />
+            <span class="text-[10px] font-medium tracking-tight">Basic</span>
+          </button>
 
-        <!-- Tab 2: Tuning -->
-        <button
-          onclick={() => {
-            activeTab = 'tuning';
-            activeTool = null;
-          }}
-          class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'tuning'
-              ? 'border-blue-500 text-blue-400 bg-[#22222a]'
-              : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
-          }`}
-          title="Tuning: Lighting, Fill Light, Highlights, Shadows, Color Temp"
-        >
-          <SlidersHorizontal class="w-4 h-4 mb-0.5" />
-          <span class="text-[10px] font-medium tracking-tight">Tuning</span>
-        </button>
+          <!-- Tab 2: Tuning -->
+          <button
+            onclick={() => {
+              activeTab = 'tuning';
+              activeTool = null;
+            }}
+            class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'tuning'
+                ? 'border-blue-500 text-blue-400 bg-[#22222a]'
+                : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+            }`}
+            title="Tuning: Lighting, Fill Light, Highlights, Shadows, Color Temp"
+          >
+            <SlidersHorizontal class="w-4 h-4 mb-0.5" />
+            <span class="text-[10px] font-medium tracking-tight">Tuning</span>
+          </button>
 
-        <!-- Tab 3: Effects 1 -->
-        <button
-          onclick={() => {
-            activeTab = 'fx1';
-            activeTool = null;
-          }}
-          class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'fx1'
-              ? 'border-blue-500 text-blue-400 bg-[#22222a]'
-              : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
-          }`}
-          title="Creative Effects 1: Sepia, B&W, Warmify, Grain, Soft Focus"
-        >
-          <Wand class="w-4 h-4 mb-0.5" />
-          <span class="text-[10px] font-medium tracking-tight">Effects</span>
-        </button>
+          <!-- Tab 3: Effects 1 -->
+          <button
+            onclick={() => {
+              activeTab = 'fx1';
+              activeTool = null;
+            }}
+            class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'fx1'
+                ? 'border-blue-500 text-blue-400 bg-[#22222a]'
+                : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+            }`}
+            title="Creative Effects 1: Sepia, B&W, Warmify, Grain, Soft Focus"
+          >
+            <Wand class="w-4 h-4 mb-0.5" />
+            <span class="text-[10px] font-medium tracking-tight">Effects</span>
+          </button>
 
-        <!-- Tab 4: Effects 2 -->
-        <button
-          onclick={() => {
-            activeTab = 'fx2';
-            activeTool = null;
-          }}
-          class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'fx2'
-              ? 'border-blue-500 text-blue-400 bg-[#22222a]'
-              : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
-          }`}
-          title="Creative Effects 2: Lomo, Holga, HDR, Cinema, Orton, 1960s"
-        >
-          <Sparkles class="w-4 h-4 mb-0.5" />
-          <span class="text-[10px] font-medium tracking-tight">Styles</span>
-        </button>
+          <!-- Tab 4: Effects 2 -->
+          <button
+            onclick={() => {
+              activeTab = 'fx2';
+              activeTool = null;
+            }}
+            class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'fx2'
+                ? 'border-blue-500 text-blue-400 bg-[#22222a]'
+                : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+            }`}
+            title="Creative Effects 2: Lomo, Holga, HDR, Cinema, Orton, 1960s"
+          >
+            <Sparkles class="w-4 h-4 mb-0.5" />
+            <span class="text-[10px] font-medium tracking-tight">Styles</span>
+          </button>
 
-        <!-- Tab 5: Effects 3 -->
-        <button
-          onclick={() => {
-            activeTab = 'fx3';
-            activeTool = null;
-          }}
-          class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'fx3'
-              ? 'border-blue-500 text-blue-400 bg-[#22222a]'
-              : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
-          }`}
-          title="Effects 3: Vignette, Museum Matte, Polaroid, Sketch, Fisheye"
-        >
-          <Palette class="w-4 h-4 mb-0.5" />
-          <span class="text-[10px] font-medium tracking-tight">Frames</span>
-        </button>
-      </div>
+          <!-- Tab 5: Effects 3 -->
+          <button
+            onclick={() => {
+              activeTab = 'fx3';
+              activeTool = null;
+            }}
+            class={`flex flex-col items-center justify-center py-2.5 px-1 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'fx3'
+                ? 'border-blue-500 text-blue-400 bg-[#22222a]'
+                : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+            }`}
+            title="Effects 3: Vignette, Museum Matte, Polaroid, Sketch, Fisheye"
+          >
+            <Palette class="w-4 h-4 mb-0.5" />
+            <span class="text-[10px] font-medium tracking-tight">Frames</span>
+          </button>
+        </div>
+      {/if}
 
       <!-- Tab Content Area -->
       <div class="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs">
+        {#if activeTool === 'crop'}
+          <!-- Dedicated Modal Crop Panel (Hides all other tools while cropping) -->
+          <div class="space-y-4 animate-in fade-in duration-150">
+            <!-- Helper Text matching Picasa -->
+            <p class="text-[11px] leading-relaxed text-neutral-300 bg-[#22222a] p-3 rounded-lg border border-neutral-700/50">
+              Select a dimension below and then click and drag on the image to select the portion of the image you wish to crop.
+            </p>
+
+            <!-- Aspect Ratio Dropdown -->
+            <div>
+              <label class="block text-[10px] uppercase font-bold text-neutral-400 tracking-wider mb-1.5" for="crop-aspect-select">
+                Aspect Ratio
+              </label>
+              <select
+                id="crop-aspect-select"
+                value={cropAspect}
+                onchange={(e) => {
+                  applyAspectToCurrentCropBox((e.target as HTMLSelectElement).value as any);
+                  loadCropSuggestions();
+                }}
+                class="w-full bg-[#121216] border border-neutral-700 hover:border-neutral-500 rounded-md px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner"
+              >
+                <option value="4x6">4 × 6 : Small print</option>
+                <option value="5x7">5 × 7 : Standard print</option>
+                <option value="8x10">8 × 10 : Large print</option>
+                <option value="square">1 : 1 : Square</option>
+                <option value="4:3">4 : 3 : Standard TV / Display</option>
+                <option value="16:9">16 : 9 : Widescreen</option>
+                <option value="original">Original photo aspect</option>
+                <option value="free">Manual / Unconstrained</option>
+              </select>
+            </div>
+
+            <!-- 3 Smart Mathematical Crop Suggestions -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">Crop Suggestions</span>
+                {#if isLoadingCropSuggestions}
+                  <span class="text-[10px] text-emerald-400 font-medium animate-pulse">Analyzing image...</span>
+                {/if}
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                {#each cropSuggestions as sug}
+                  {@const isSelected = Math.abs(cropBox.x - sug.x) < 0.02 && Math.abs(cropBox.y - sug.y) < 0.02 && Math.abs(cropBox.width - sug.width) < 0.02}
+                  {@const targetAspect = getTargetAspectValue()}
+                  {@const sugAspect = targetAspect != null ? targetAspect : Math.max(0.2, Math.min(5.0, (sug.width / Math.max(0.001, sug.height)) * activePhotoAspect))}
+                  {@const boxW = sugAspect >= 68 / 76 ? 68 : Math.max(34, Math.round(76 * sugAspect))}
+                  {@const boxH = sugAspect >= 68 / 76 ? Math.max(28, Math.round(68 / sugAspect)) : 76}
+                  <button
+                    type="button"
+                    onclick={() => selectCropSuggestion(sug)}
+                    class={`flex flex-col items-center justify-between p-1 rounded-lg border transition-all cursor-pointer group bg-[#181820] hover:bg-[#22222c] shadow-sm ${
+                      isSelected
+                        ? 'border-emerald-400 ring-2 ring-emerald-500/40 bg-emerald-950/20 shadow-emerald-950/50'
+                        : 'border-neutral-700/80 hover:border-neutral-500'
+                    }`}
+                    title="{sug.label} ({Math.round(sug.width * 100)}% × {Math.round(sug.height * 100)}%)"
+                  >
+                    <!-- Centered Aspect-Ratio-Preserved Crop Preview Box -->
+                    <div class="w-full h-[80px] flex items-center justify-center p-0.5">
+                      <div
+                        class={`relative overflow-hidden rounded bg-black/90 shadow-inner flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'border-2 border-emerald-400 ring-2 ring-emerald-500/50 shadow-emerald-950/60'
+                            : 'border border-neutral-700/80 group-hover:border-neutral-400'
+                        }`}
+                        style="width: {boxW}px; height: {boxH}px;"
+                      >
+                        <img
+                          src={previewThumbSrc}
+                          alt={sug.label}
+                          class="absolute select-none pointer-events-none"
+                          style="
+                            width: {(1 / Math.max(0.01, sug.width)) * 100}%;
+                            height: {(1 / Math.max(0.01, sug.height)) * 100}%;
+                            left: -{(sug.x / Math.max(0.01, sug.width)) * 100}%;
+                            top: -{(sug.y / Math.max(0.01, sug.height)) * 100}%;
+                            max-width: none !important;
+                            max-height: none !important;
+                            object-fit: fill;
+                            display: block;
+                          "
+                          onerror={(e) => {
+                            const el = e.currentTarget as HTMLImageElement;
+                            if (activeImageSrc && el.src !== activeImageSrc) {
+                              el.src = activeImageSrc;
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div class="w-full text-center text-[10px] font-medium text-neutral-300 group-hover:text-emerald-300 truncate pt-1">
+                      {sug.label}
+                    </div>
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <!-- Action Buttons: Rotate & Preview -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onclick={rotateCropOrientation}
+                class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-md border border-neutral-700 hover:bg-[#282832] text-neutral-200 hover:text-white transition-colors cursor-pointer text-xs font-medium"
+                title="Switch between portrait and landscape crop ratio"
+              >
+                <RotateCw class="w-3.5 h-3.5 text-blue-400" />
+                <span>Rotate</span>
+              </button>
+
+              <button
+                type="button"
+                onclick={triggerCropPreview}
+                class={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md border transition-all cursor-pointer text-xs font-medium shadow-sm ${
+                  isCropPreviewMode
+                    ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300 ring-2 ring-emerald-500/30'
+                    : 'border-neutral-700 hover:bg-[#282832] text-neutral-200 hover:text-white'
+                }`}
+                title="Preview cutout in full size (auto-reverts in 2.8s)"
+              >
+                <Eye class="w-3.5 h-3.5 text-emerald-400" />
+                <span>{isCropPreviewMode ? 'Revert' : 'Preview'}</span>
+              </button>
+            </div>
+
+            <!-- Action Buttons: Reset -->
+            <div>
+              <button
+                type="button"
+                onclick={resetCrop}
+                class="w-full py-1.5 px-3 rounded-md border border-neutral-700/80 hover:bg-[#282832] text-neutral-300 hover:text-white transition-colors cursor-pointer text-xs"
+                title="Reset crop selection to default"
+              >
+                Reset
+              </button>
+            </div>
+
+            <!-- Action Buttons: Apply & Cancel (Iconic Picasa style) -->
+            <div class="flex items-center gap-2 pt-2 border-t border-neutral-800">
+              <button
+                type="button"
+                onclick={handleApplyCrop}
+                class="flex-1 flex items-center justify-center gap-2 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all cursor-pointer text-xs shadow-md active:scale-98"
+                title="Apply Crop (Enter)"
+              >
+                <Check class="w-4 h-4" />
+                <span>Apply</span>
+              </button>
+
+              <button
+                type="button"
+                onclick={handleCancelCrop}
+                class="flex-1 flex items-center justify-center gap-2 py-2 rounded-md bg-neutral-700 hover:bg-neutral-600 text-neutral-200 hover:text-white transition-all cursor-pointer text-xs active:scale-98"
+                title="Cancel Crop (Esc)"
+              >
+                <X class="w-4 h-4 text-red-400" />
+                <span>Cancel</span>
+              </button>
+            </div>
+          </div>
+        {:else}
         
         <!-- ------------------------------------------------------------- -->
         <!-- TAB 1: BASIC FIXES                                            -->
@@ -787,67 +1819,21 @@
             </div>
 
             <!-- Crop Tool -->
-            <div class="border border-neutral-700/60 rounded-lg overflow-hidden bg-[#24242c]">
-              <button
-                onclick={() => (activeTool = activeTool === 'crop' ? null : 'crop')}
-                class="w-full flex items-center justify-between p-2.5 hover:bg-white/5 transition-colors font-medium text-left cursor-pointer"
-              >
-                <div class="flex items-center gap-2.5">
-                  <Crop class="w-4 h-4 text-emerald-400" />
-                  <span>Crop</span>
-                </div>
-                <span class="text-[10px] text-neutral-400">{activeTool === 'crop' ? 'Active' : 'Open'}</span>
-              </button>
-
-              {#if activeTool === 'crop'}
-                <div class="p-3 border-t border-neutral-700/60 bg-[#1c1c22] space-y-2.5 animate-in fade-in duration-150">
-                  <div class="text-[11px] text-neutral-400">Aspect Ratio Preset:</div>
-                  <div class="grid grid-cols-3 gap-1.5 text-[11px]">
-                    {#each [
-                      { id: 'free', label: 'Manual' },
-                      { id: 'square', label: '1:1 Sq' },
-                      { id: '4:3', label: '4:3' },
-                      { id: '16:9', label: '16:9' },
-                      { id: '4x6', label: '4 × 6' },
-                      { id: '5x7', label: '5 × 7' },
-                    ] as asp}
-                      <button
-                        onclick={() => (cropAspect = asp.id as any)}
-                        class={`py-1 px-1.5 rounded text-center border transition-colors cursor-pointer ${
-                          cropAspect === asp.id
-                            ? 'bg-blue-600/30 border-blue-500 text-blue-300 font-semibold'
-                            : 'border-neutral-700 hover:bg-white/5 text-neutral-300'
-                        }`}
-                      >
-                        {asp.label}
-                      </button>
-                    {/each}
-                  </div>
-                  <div class="flex items-center gap-2 pt-2">
-                    <button
-                      onclick={() => {
-                        showToast('Crop preview applied');
-                        activeTool = null;
-                      }}
-                      class="flex-1 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors cursor-pointer"
-                    >
-                      Apply
-                    </button>
-                    <button
-                      onclick={() => (activeTool = null)}
-                      class="px-3 py-1.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            </div>
+            <button
+              onclick={openCropTool}
+              class="w-full flex items-center justify-between p-2.5 rounded-lg bg-[#272730] hover:bg-[#32323e] border border-neutral-700/60 font-medium text-left cursor-pointer transition-all active:scale-98"
+            >
+              <div class="flex items-center gap-2.5">
+                <Crop class="w-4 h-4 text-emerald-400" />
+                <span class="font-semibold text-xs tracking-wide">Crop Photo</span>
+              </div>
+              <span class="text-[10px] text-neutral-400 font-mono">Open</span>
+            </button>
 
             <!-- Straighten Tool -->
             <div class="border border-neutral-700/60 rounded-lg overflow-hidden bg-[#24242c]">
               <button
-                onclick={() => (activeTool = activeTool === 'straighten' ? null : 'straighten')}
+                onclick={openStraightenTool}
                 class="w-full flex items-center justify-between p-2.5 hover:bg-white/5 transition-colors font-medium text-left cursor-pointer"
               >
                 <div class="flex items-center gap-2.5">
@@ -860,35 +1846,93 @@
               </button>
 
               {#if activeTool === 'straighten'}
-                <div class="p-3 border-t border-neutral-700/60 bg-[#1c1c22] space-y-2.5 animate-in fade-in duration-150">
+                <div class="p-3 border-t border-neutral-700/60 bg-[#1c1c22] space-y-3 animate-in fade-in duration-150">
                   <div class="flex items-center justify-between text-[11px] text-neutral-400">
                     <span>Horizon Level:</span>
-                    <span class="font-mono text-cyan-300">{straightenAngle}°</span>
+                    <span class="font-mono text-cyan-300 font-bold">{formatStraightenAngle(straightenAngle)}</span>
                   </div>
                   <input
                     type="range"
-                    min="-20"
-                    max="20"
-                    step="0.5"
+                    min="-45"
+                    max="45"
+                    step="0.1"
                     bind:value={straightenAngle}
                     class="w-full accent-cyan-400 cursor-pointer"
                   />
+
+                  <!-- 3 Smart Straighten Suggestions -->
+                  <div>
+                    <div class="flex items-center justify-between mb-1.5 pt-1">
+                      <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">Level Suggestions</span>
+                      {#if isLoadingStraightenSuggestions}
+                        <span class="text-[10px] text-cyan-400 font-medium animate-pulse">Analyzing lines...</span>
+                      {/if}
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                      {#each straightenSuggestions as sug}
+                        {@const isSelected = Math.abs(straightenAngle - sug.angle) < 0.15}
+                        {@const sugZoom = getStraightenZoom(sug.angle, activePhotoAspect)}
+                        <button
+                          type="button"
+                          onclick={() => selectStraightenSuggestion(sug)}
+                          class={`flex flex-col items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer group bg-[#181820] hover:bg-[#22222c] shadow-sm ${
+                            isSelected
+                              ? 'border-cyan-400 ring-2 ring-cyan-500/40 bg-cyan-950/20 shadow-cyan-950/50'
+                              : 'border-neutral-700/80 hover:border-neutral-500'
+                          }`}
+                          title="{sug.label}: {formatStraightenAngle(sug.angle)} ({sug.description})"
+                        >
+                          <!-- Centered Thumbnail with Straighten Angle Rotation Preview -->
+                          <div class="w-full h-[54px] flex items-center justify-center p-0.5">
+                            <div
+                              class={`relative w-full h-full overflow-hidden rounded bg-black/90 shadow-inner flex items-center justify-center transition-all ${
+                                isSelected
+                                  ? 'border-2 border-cyan-400 ring-2 ring-cyan-500/50 shadow-cyan-950/60'
+                                  : 'border border-neutral-700/80 group-hover:border-neutral-400'
+                              }`}
+                            >
+                              <img
+                                src={previewThumbSrc}
+                                alt={sug.label}
+                                class="max-w-none w-full h-full object-cover select-none pointer-events-none"
+                                style="
+                                  transform: rotate({sug.angle}deg) scale({sugZoom});
+                                  transform-origin: center center;
+                                "
+                                onerror={(e) => {
+                                  const el = e.currentTarget as HTMLImageElement;
+                                  if (activeImageSrc && el.src !== activeImageSrc) {
+                                    el.src = activeImageSrc;
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div class="w-full text-center mt-1">
+                            <div class="text-[10px] font-semibold text-neutral-200 truncate group-hover:text-white">
+                              {sug.label}
+                            </div>
+                            <div class="text-[9px] font-mono {isSelected ? 'text-cyan-300 font-bold' : 'text-neutral-400'}">
+                              {formatStraightenAngle(sug.angle)}
+                            </div>
+                          </div>
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+
                   <div class="flex items-center gap-2 pt-1">
                     <button
-                      onclick={() => {
-                        showToast(`Straighten angle ${straightenAngle}° applied`);
-                        activeTool = null;
-                      }}
-                      class="flex-1 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors cursor-pointer"
+                      onclick={handleApplyStraighten}
+                      class="flex-1 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors cursor-pointer text-xs"
                     >
                       Apply
                     </button>
                     <button
-                      onclick={() => {
-                        straightenAngle = 0;
-                        activeTool = null;
-                      }}
-                      class="px-3 py-1.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors cursor-pointer"
+                      onclick={handleCancelStraighten}
+                      class="px-3 py-1.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300 transition-colors cursor-pointer text-xs"
                     >
                       Reset
                     </button>
@@ -1284,6 +2328,7 @@
             </div>
           </div>
         {/if}
+        {/if}
 
       </div>
 
@@ -1414,6 +2459,20 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- Debug Overlay Toggle -->
+          <button
+            onclick={() => ($showEditOverlay = !$showEditOverlay)}
+            class={`px-2 py-1 rounded text-xs font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
+              $showEditOverlay
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                : 'bg-[#24242c] border-neutral-700 text-neutral-400 hover:text-white'
+            }`}
+            title="Toggle Image Edit Debug Overlay"
+          >
+            <Bug class="w-3.5 h-3.5" />
+            <span class="text-[11px]">Debug HUD</span>
+          </button>
+
           <!-- Info Details Toggle -->
           <button
             onclick={() => (showInfo = !showInfo)}
@@ -1444,6 +2503,165 @@
             {toastMsg}
           </div>
         </div>
+      {/if}
+
+      <!-- Image Edit Debug Overlay HUD -->
+      {#if $showEditOverlay}
+        <aside
+          class="absolute top-14 right-4 z-40 w-96 max-h-[calc(100vh-120px)] flex flex-col bg-[#16161d]/95 border border-amber-500/40 rounded-xl shadow-2xl backdrop-blur-md overflow-hidden text-xs text-neutral-200 animate-in fade-in zoom-in-95 duration-150 select-text"
+        >
+          <!-- HUD Header -->
+          <div class="px-3.5 py-2.5 bg-amber-950/40 border-b border-amber-500/30 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+              <Bug class="w-4 h-4 text-amber-400" />
+              <span class="font-bold text-amber-300 tracking-wide text-xs">Image Edit Session HUD</span>
+            </div>
+            <div class="flex items-center gap-2">
+              {#if sessionState?.has_session}
+                <span class={`text-[10px] px-2 py-0.5 rounded font-mono font-semibold ${
+                  sessionState.is_committed
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {sessionState.is_committed ? 'COMMITTED' : 'DRAFT'}
+                </span>
+              {/if}
+              <button
+                onclick={() => ($showEditOverlay = false)}
+                class="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                title="Close Debug Overlay"
+              >
+                <X class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <!-- HUD Scrollable Content -->
+          <div class="flex-1 overflow-y-auto p-3.5 space-y-3 font-sans">
+            <!-- Session Location & Disk Target -->
+            <div class="space-y-1.5 p-2.5 rounded-lg bg-black/40 border border-neutral-800 text-[11px]">
+              <div class="text-[10px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
+                <HardDrive class="w-3 h-3" />
+                <span>Session Manifest & Paths</span>
+              </div>
+              <div class="space-y-1 text-neutral-300 font-mono text-[10px] break-all">
+                <div><span class="text-neutral-500">Manifest: </span><span class="text-sky-300">{sessionState?.session_manifest_path || 'None'}</span></div>
+                <div><span class="text-neutral-500">Session Dir: </span><span class="text-neutral-400">{sessionState?.session_dir || 'None'}</span></div>
+                <div><span class="text-neutral-500">Target File: </span><span class="text-neutral-400">{currentPhoto.file_path}</span></div>
+                <div><span class="text-neutral-500">Backup (.pica_originals): </span><span class={sessionState?.has_backup ? 'text-emerald-400' : 'text-neutral-500'}>{sessionState?.backup_path || 'No backup on disk'}</span></div>
+                <div class="flex items-center justify-between pt-1 text-[11px] font-sans">
+                  <span>Current Step: <strong class="text-amber-300 font-mono">{sessionState?.current_step ?? 0}</strong> / {sessionState?.total_steps ?? 0}</span>
+                  <span>Rotation: <strong class="text-blue-300 font-mono">{sessionState?.cumulative_rotation ?? 0}°</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Intermediate Steps & Render Status (The core visual chain) -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <Layers class="w-3 h-3" />
+                  <span>Intermediate Steps & Renders ({sessionState?.steps?.length ?? 0})</span>
+                </span>
+                <span class="text-[10px] text-neutral-400">
+                  {sessionState?.steps?.length ? 'Fast Proxy Mode' : 'No steps'}
+                </span>
+              </div>
+
+              {#if sessionState?.steps && sessionState.steps.length > 0}
+                <div class="space-y-2">
+                  {#each sessionState.steps as step, idx}
+                    {@const isCurrent = idx === sessionState.current_step}
+                    {@const stepFullPath = sessionState.session_dir && step.render_file ? `${sessionState.session_dir}/${step.render_file}` : null}
+                    <button
+                      type="button"
+                      onclick={() => handleJumpToStep(step.step_id)}
+                      disabled={isEditing}
+                      class={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-blue-950/40 border-blue-500/70 shadow-lg shadow-blue-950/50 ring-1 ring-blue-500/50'
+                          : 'bg-black/30 border-neutral-800/80 hover:border-neutral-600 hover:bg-neutral-900/60'
+                      } ${isEditing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      <div class="flex items-start gap-2.5">
+                        <!-- Mini Preview Thumb of this intermediate render -->
+                        {#if stepFullPath}
+                          <div class="relative w-12 h-12 rounded overflow-hidden bg-black/60 shrink-0 border border-neutral-700">
+                            <img
+                              src={getPreviewImageUrl(stepFullPath, cacheBuster)}
+                              alt={`Step ${step.step_id}`}
+                              class="w-full h-full object-cover"
+                            />
+                            {#if isCurrent}
+                              <div class="absolute inset-0 border-2 border-blue-400 pointer-events-none"></div>
+                            {/if}
+                          </div>
+                        {/if}
+
+                        <!-- Step Details -->
+                        <div class="flex-1 min-w-0 space-y-1">
+                          <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-1.5">
+                              <span class={`text-[10px] px-1.5 py-0.2 rounded font-bold font-mono ${
+                                isCurrent ? 'bg-blue-500 text-white' : 'bg-neutral-800 text-neutral-300'
+                              }`}>
+                                #{step.step_id}
+                              </span>
+                              <span class="font-semibold text-neutral-200 capitalize">
+                                {step.op === 'rotate' ? `Rotate (${step.params.degrees > 0 ? '+' : ''}${step.params.degrees}°)` : step.op}
+                              </span>
+                            </div>
+
+                            {#if isCurrent}
+                              <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 font-bold tracking-wider">
+                                ACTIVE RENDER
+                              </span>
+                            {/if}
+                          </div>
+
+                          <div class="text-[10px] text-neutral-400 font-mono truncate">
+                            File: <span class="text-emerald-400">{step.render_file || 'None'}</span>
+                          </div>
+
+                          {#if stepFullPath}
+                            <div class="text-[9px] text-neutral-500 font-mono break-all leading-tight">
+                              {stepFullPath}
+                            </div>
+                          {/if}
+
+                          <div class="flex items-center justify-between text-[10px] text-neutral-400 pt-0.5">
+                            <span>Cum. Rot: <strong class="text-neutral-200">{step.cumulative_rotation}°</strong></span>
+                            <span>{new Date(step.timestamp * 1000).toLocaleTimeString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  {/each}
+                </div>
+              {:else}
+                <div class="p-4 rounded-lg bg-black/30 border border-neutral-800/80 text-center text-neutral-400 text-xs">
+                  No editing steps recorded yet. Apply a rotation or edit tool to create the session proxy.
+                </div>
+              {/if}
+            </div>
+
+            <!-- Raw Session JSON Collapsible -->
+            {#if sessionState?.has_session}
+              <details class="p-2.5 rounded-lg bg-black/40 border border-neutral-800 text-[11px] group">
+                <summary class="font-bold text-amber-400 cursor-pointer flex items-center justify-between select-none">
+                  <span class="flex items-center gap-1.5 uppercase text-[10px]">
+                    <FileCode2 class="w-3 h-3" />
+                    Raw session.json Content
+                  </span>
+                  <span class="text-[10px] text-neutral-500 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <pre class="mt-2 p-2 rounded bg-black/80 text-[10px] font-mono text-emerald-300 overflow-x-auto max-h-48 border border-neutral-800">
+{JSON.stringify(sessionState, null, 2)}
+                </pre>
+              </details>
+            {/if}
+          </div>
+        </aside>
       {/if}
 
       <!-- External Modification Conflict Banner -->
@@ -1505,75 +2723,356 @@
           <!-- 1-Up Single Canvas with Friendly Physical Rotation & Live Filters -->
           <div
             class="w-full h-full flex items-center justify-center p-6"
+            onclick={() => {
+              if (isCropPreviewMode) cancelCropPreview();
+            }}
           >
+            <!-- Indeterminate Progress Shimmer for Image Loading & Rendering -->
+            {#if isMainImageLoading || isEditing}
+              <div class="absolute top-0 inset-x-0 h-0.5 bg-neutral-900/60 overflow-hidden z-40 pointer-events-none">
+                <div class="h-full bg-gradient-to-r from-blue-500 via-emerald-400 to-cyan-400 w-1/3 animate-[progress_1.1s_ease-in-out_infinite]"></div>
+              </div>
+            {/if}
+
+            <!-- Floating Preview Cutout Badge -->
+            {#if isCropPreviewMode}
+              <button
+                type="button"
+                onclick={cancelCropPreview}
+                class="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-black/85 hover:bg-black text-white text-xs px-4 py-2 rounded-full border border-white/25 shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 cursor-pointer transition-all active:scale-95"
+                title="Click or press Esc to return"
+              >
+                <Eye class="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span class="font-medium">Crop Preview</span>
+                <span class="text-neutral-400 text-[10px]">• Click or Esc to return</span>
+              </button>
+            {/if}
+
             <div
               class="relative flex items-center justify-center select-none"
               style="
-                transform: rotate({visualRotation + straightenAngle}deg) scale({isZoomed100 ? 1.5 : fitScale});
+                transform: rotate({effectiveCanvasRotation}deg) scale({isZoomed100 ? 1.5 : fitScale});
                 transform-origin: center center;
-                transition: transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1);
+                transition: {isTransitioning ? 'transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none'};
               "
             >
-              <button
-                type="button"
-                class="contents border-none bg-transparent p-0 m-0"
-                onclick={toggleZoom}
-                aria-label="Toggle 100% zoom"
+              <div
+                class="relative inline-block select-none {activeTool === 'straighten' ? 'overflow-hidden rounded-sm' : ''}"
+                bind:this={imageContainerRef}
               >
-                <img
-                  src={getFullImageUrl(currentPhoto, cacheBuster)}
-                  alt={currentPhoto.file_name}
-                  class={`max-h-[calc(100vh-140px)] max-w-[calc(100vw-360px)] rounded-sm shadow-2xl object-contain transition-all duration-150 ${
-                    isZoomed100 ? 'cursor-grab' : 'cursor-zoom-in'
-                  }`}
-                  style="filter: {liveFilterStyle};"
-                />
-              </button>
-
-              <!-- Vignette Overlay Effect -->
-              {#if activeEffect === 'vignette'}
+                <!-- Animated Cutout Preview Container (Picasa style zoom to full size) -->
                 <div
-                  class="absolute inset-0 pointer-events-none rounded-sm"
-                  style="box-shadow: inset 0 0 120px 40px rgba(0, 0, 0, {(effectIntensity / 100) * 0.85});"
-                ></div>
-              {/if}
+                  class="relative inline-block select-none"
+                  style="
+                    {isCropPreviewMode
+                      ? `transform: scale(${previewScale}) translate(${previewTx}%, ${previewTy}%); clip-path: inset(${previewClipTop}% ${previewClipRight}% ${previewClipBottom}% ${previewClipLeft}%);`
+                      : 'transform: scale(1) translate(0%, 0%); clip-path: inset(0% 0% 0% 0%);'}
+                    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), clip-path 420ms cubic-bezier(0.16, 1, 0.3, 1);
+                    will-change: transform, clip-path;
+                  "
+                >
+                  <button
+                    type="button"
+                    class="contents border-none bg-transparent p-0 m-0"
+                    onclick={() => {
+                      if (isCropPreviewMode) {
+                        cancelCropPreview();
+                        return;
+                      }
+                      if (activeTool === 'crop' || activeTool === 'straighten') return;
+                      toggleZoom();
+                    }}
+                    aria-label="Toggle 100% zoom"
+                  >
+                    <!-- Blurred low-res thumbnail underlay to prevent blank screen during high-res fetch -->
+                    {#if isMainImageLoading && previewThumbSrc}
+                      <img
+                        src={previewThumbSrc}
+                        alt="Thumbnail placeholder"
+                        class="absolute inset-0 w-full h-full object-contain filter blur-md opacity-45 scale-100 pointer-events-none transition-opacity duration-300"
+                      />
+                    {/if}
 
-              <!-- Museum Matte Frame Effect -->
-              {#if activeEffect === 'museum'}
-                <div
-                  class="absolute inset-0 pointer-events-none border-[24px] border-white shadow-2xl"
-                ></div>
-              {/if}
+                    <img
+                      bind:this={mainImgRef}
+                      src={activeImageSrc}
+                      alt={currentPhoto.file_name}
+                      onload={(e) => handleImageLoaded(e.currentTarget as HTMLImageElement)}
+                      class={`max-h-[calc(100vh-140px)] max-w-[calc(100vw-360px)] rounded-sm shadow-2xl object-contain block ${
+                        isMainImageLoading ? 'opacity-30 scale-[0.99] filter blur-[1px]' : 'opacity-100 scale-100'
+                      } ${
+                        activeTool === 'crop'
+                          ? isCropPreviewMode ? 'cursor-pointer' : 'cursor-crosshair'
+                          : activeTool === 'straighten'
+                          ? 'cursor-default'
+                          : isZoomed100
+                          ? 'cursor-grab'
+                          : 'cursor-zoom-in'
+                      }`}
+                      style="
+                        filter: {liveFilterStyle};
+                        {activeTool === 'straighten'
+                          ? `transform: rotate(${straightenAngle}deg) scale(${straightenZoom}); transform-origin: center center; will-change: transform; transition: none;`
+                          : 'transition: all 300ms ease-out;'
+                        }
+                      "
+                    />
+                  </button>
 
-              <!-- Polaroid Frame Effect -->
-              {#if activeEffect === 'polaroid'}
-                <div
-                  class="absolute -inset-4 pointer-events-none border-t-[16px] border-x-[16px] border-b-[54px] border-[#f8f8f5] shadow-2xl rounded-xs"
-                ></div>
-              {/if}
+                  <!-- Processing / Rendering Spinner Feedback -->
+                  {#if isEditing}
+                    <div class="absolute inset-0 bg-black/25 backdrop-blur-[1px] flex items-center justify-center rounded-sm pointer-events-none transition-opacity duration-200 z-30">
+                      <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/85 backdrop-blur-md border border-white/20 text-white text-xs font-medium shadow-2xl animate-pulse">
+                        <Loader2 class="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                        <span class="tracking-wide">Rendering edit...</span>
+                      </div>
+                    </div>
+                  {/if}
 
-              <!-- Straighten Leveling Grid Overlay -->
-              {#if activeTool === 'straighten'}
-                <div class="absolute inset-0 pointer-events-none grid grid-cols-6 grid-rows-6 border border-cyan-400/50">
-                  {#each Array(36) as _}
-                    <div class="border-r border-b border-cyan-400/25"></div>
-                  {/each}
+                  <!-- Vignette Overlay Effect -->
+                  {#if activeEffect === 'vignette'}
+                    <div
+                      class="absolute inset-0 pointer-events-none rounded-sm"
+                      style="box-shadow: inset 0 0 120px 40px rgba(0, 0, 0, {(effectIntensity / 100) * 0.85});"
+                    ></div>
+                  {/if}
+
+                  <!-- Museum Matte Frame Effect -->
+                  {#if activeEffect === 'museum'}
+                    <div
+                      class="absolute inset-0 pointer-events-none border-[24px] border-white shadow-2xl"
+                    ></div>
+                  {/if}
+
+                  <!-- Polaroid Frame Effect -->
+                  {#if activeEffect === 'polaroid'}
+                    <div
+                      class="absolute -inset-4 pointer-events-none border-t-[16px] border-x-[16px] border-b-[54px] border-[#f8f8f5] shadow-2xl rounded-xs"
+                    ></div>
+                  {/if}
                 </div>
-              {/if}
 
-              <!-- Crop Rule-of-Thirds Grid Overlay -->
-              {#if activeTool === 'crop'}
-                <div class="absolute inset-4 pointer-events-none border-2 border-dashed border-emerald-400 grid grid-cols-3 grid-rows-3 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
-                  {#each Array(9) as _}
-                    <div class="border border-emerald-400/40"></div>
-                  {/each}
-                  <!-- Corner Handles -->
-                  <div class="absolute -top-1.5 -left-1.5 w-3 h-3 bg-emerald-400"></div>
-                  <div class="absolute -top-1.5 -right-1.5 w-3 h-3 bg-emerald-400"></div>
-                  <div class="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-emerald-400"></div>
-                  <div class="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-emerald-400"></div>
-                </div>
-              {/if}
+                <!-- Picasa Straighten Leveling Grid Overlay (Stationary unrotated frame overlay) -->
+                {#if activeTool === 'straighten'}
+                  <div class="absolute inset-0 pointer-events-none z-20 border border-white/40 shadow-inner overflow-hidden">
+                    <svg class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <pattern id="picasa-straighten-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+                          <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(255, 255, 255, 0.45)" stroke-width="0.75" stroke-dasharray="3 3" />
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#picasa-straighten-grid)" />
+                    </svg>
+                  </div>
+                {/if}
+
+                <!-- Interactive Picasa-Style Crop Box & Darkened Outer Shroud -->
+                {#if activeTool === 'crop'}
+                  <div
+                    class="absolute inset-0 select-none touch-none overflow-hidden"
+                    onpointerdown={(e) => {
+                      if (isCropPreviewMode) {
+                        cancelCropPreview();
+                        return;
+                      }
+                      handleCanvasPointerDown(e);
+                    }}
+                  >
+                    {#if !isCropPreviewMode}
+                      <!-- 4-Piece Outer Dimming Shroud with Smooth Transitions on Preset Selection -->
+                      <!-- Top -->
+                      <div
+                        class="absolute top-0 left-0 right-0 bg-black/70 backdrop-blur-[0.5px] pointer-events-none"
+                        style="height: {cropBox.y * 100}%; transition: {dragHandle ? 'none' : 'height 280ms cubic-bezier(0.16, 1, 0.3, 1)'};"
+                      ></div>
+                      <!-- Bottom -->
+                      <div
+                        class="absolute bottom-0 left-0 right-0 bg-black/70 backdrop-blur-[0.5px] pointer-events-none"
+                        style="top: {(cropBox.y + cropBox.height) * 100}%; transition: {dragHandle ? 'none' : 'top 280ms cubic-bezier(0.16, 1, 0.3, 1)'};"
+                      ></div>
+                      <!-- Left -->
+                      <div
+                        class="absolute left-0 bg-black/70 backdrop-blur-[0.5px] pointer-events-none"
+                        style="top: {cropBox.y * 100}%; height: {cropBox.height * 100}%; width: {cropBox.x * 100}%; transition: {dragHandle ? 'none' : 'all 280ms cubic-bezier(0.16, 1, 0.3, 1)'};"
+                      ></div>
+                      <!-- Right -->
+                      <div
+                        class="absolute right-0 bg-black/70 backdrop-blur-[0.5px] pointer-events-none"
+                        style="top: {cropBox.y * 100}%; height: {cropBox.height * 100}%; left: {(cropBox.x + cropBox.width) * 100}%; transition: {dragHandle ? 'none' : 'all 280ms cubic-bezier(0.16, 1, 0.3, 1)'};"
+                      ></div>
+
+                      <!-- Draggable / Resizable Crop Box with L-Bracket Handles & Live Ratio Badge -->
+                      <div
+                        class={`absolute select-none touch-none border border-white/95 shadow-[0_0_0_1px_rgba(0,0,0,0.85),0_4px_24px_rgba(0,0,0,0.6)] ${
+                          dragHandle === 'move'
+                            ? 'cursor-grabbing ring-2 ring-emerald-400/80 shadow-[0_0_24px_rgba(52,211,153,0.35)]'
+                            : 'cursor-grab hover:border-white'
+                        }`}
+                        style="
+                          left: {cropBox.x * 100}%;
+                          top: {cropBox.y * 100}%;
+                          width: {cropBox.width * 100}%;
+                          height: {cropBox.height * 100}%;
+                          transition: {dragHandle ? 'none' : 'left 280ms cubic-bezier(0.16, 1, 0.3, 1), top 280ms cubic-bezier(0.16, 1, 0.3, 1), width 280ms cubic-bezier(0.16, 1, 0.3, 1), height 280ms cubic-bezier(0.16, 1, 0.3, 1)'};
+                        "
+                        onpointerdown={(e) => startDrag(e, 'move')}
+                        onpointerenter={() => (isCropHovered = true)}
+                        onpointerleave={() => (isCropHovered = false)}
+                        role="region"
+                        aria-label="Crop selection box"
+                      >
+                        <!-- Floating Real-Time Aspect & Dimension Badge -->
+                        <div
+                          class={`absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-neutral-950/90 backdrop-blur-md border border-white/25 text-white font-mono text-[10px] font-medium shadow-xl pointer-events-none select-none flex items-center gap-1.5 whitespace-nowrap transition-all duration-200 ${
+                            dragHandle !== null || isCropHovered ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1'
+                          }`}
+                        >
+                          <span class="text-emerald-400 font-semibold">{cropAspect === 'free' ? 'Free' : cropAspect.toUpperCase()}</span>
+                          <span class="text-white/40">•</span>
+                          <span>
+                            {Math.round((renderedNaturalWidth || (currentPhoto?.width || 1000)) * cropBox.width)} × {Math.round((renderedNaturalHeight || (currentPhoto?.height || 1000)) * cropBox.height)} px
+                          </span>
+                        </div>
+
+                        <!-- 3x3 Rule-of-Thirds Grid Lines -->
+                        <div class={`absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none transition-opacity duration-200 ${
+                          dragHandle !== null ? 'opacity-85' : isCropHovered ? 'opacity-60' : 'opacity-30'
+                        }`}>
+                          {#each Array(9) as _}
+                            <div class="border border-white/40 border-dashed"></div>
+                          {/each}
+                        </div>
+
+                        <!-- 4 Corner L-Bracket Handles -->
+                        <!-- NW -->
+                        <div
+                          class="absolute -top-1.5 -left-1.5 w-7 h-7 cursor-nwse-resize z-30 flex items-start justify-start group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'nw')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.width * 100)}
+                          aria-label="Resize crop top-left"
+                        >
+                          <div class="relative w-4 h-4 pointer-events-none">
+                            <div class="absolute top-0 left-0 w-4 h-1 bg-white rounded-l-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-t border-l border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                            <div class="absolute top-0 left-0 w-1 h-4 bg-white rounded-t-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-l border-b border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                          </div>
+                        </div>
+
+                        <!-- NE -->
+                        <div
+                          class="absolute -top-1.5 -right-1.5 w-7 h-7 cursor-nesw-resize z-30 flex items-start justify-end group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'ne')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.width * 100)}
+                          aria-label="Resize crop top-right"
+                        >
+                          <div class="relative w-4 h-4 pointer-events-none">
+                            <div class="absolute top-0 right-0 w-4 h-1 bg-white rounded-r-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-t border-r border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                            <div class="absolute top-0 right-0 w-1 h-4 bg-white rounded-t-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-r border-b border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                          </div>
+                        </div>
+
+                        <!-- SW -->
+                        <div
+                          class="absolute -bottom-1.5 -left-1.5 w-7 h-7 cursor-nesw-resize z-30 flex items-end justify-start group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'sw')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.width * 100)}
+                          aria-label="Resize crop bottom-left"
+                        >
+                          <div class="relative w-4 h-4 pointer-events-none">
+                            <div class="absolute bottom-0 left-0 w-4 h-1 bg-white rounded-l-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-b border-l border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                            <div class="absolute bottom-0 left-0 w-1 h-4 bg-white rounded-b-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-l border-t border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                          </div>
+                        </div>
+
+                        <!-- SE -->
+                        <div
+                          class="absolute -bottom-1.5 -right-1.5 w-7 h-7 cursor-nwse-resize z-30 flex items-end justify-end group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'se')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.width * 100)}
+                          aria-label="Resize crop bottom-right"
+                        >
+                          <div class="relative w-4 h-4 pointer-events-none">
+                            <div class="absolute bottom-0 right-0 w-4 h-1 bg-white rounded-r-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-b border-r border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                            <div class="absolute bottom-0 right-0 w-1 h-4 bg-white rounded-b-xs shadow-[0_1px_3px_rgba(0,0,0,0.9)] border-r border-t border-neutral-900 group-hover/h:bg-emerald-300 transition-colors"></div>
+                          </div>
+                        </div>
+
+                        <!-- 4 Edge Center Grab Pill Handles -->
+                        <!-- N -->
+                        <div
+                          class="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 cursor-ns-resize z-30 flex items-center justify-center group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'n')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.height * 100)}
+                          aria-label="Resize crop top edge"
+                        >
+                          <div class="w-6 h-1.5 bg-white rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.9)] border border-neutral-900 group-hover/h:bg-emerald-300 group-hover/h:scale-110 transition-all pointer-events-none"></div>
+                        </div>
+
+                        <!-- S -->
+                        <div
+                          class="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-5 cursor-ns-resize z-30 flex items-center justify-center group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 's')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.height * 100)}
+                          aria-label="Resize crop bottom edge"
+                        >
+                          <div class="w-6 h-1.5 bg-white rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.9)] border border-neutral-900 group-hover/h:bg-emerald-300 group-hover/h:scale-110 transition-all pointer-events-none"></div>
+                        </div>
+
+                        <!-- W -->
+                        <div
+                          class="absolute top-1/2 -translate-y-1/2 -left-2.5 w-5 h-10 cursor-ew-resize z-30 flex items-center justify-center group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'w')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.width * 100)}
+                          aria-label="Resize crop left edge"
+                        >
+                          <div class="w-1.5 h-6 bg-white rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.9)] border border-neutral-900 group-hover/h:bg-emerald-300 group-hover/h:scale-110 transition-all pointer-events-none"></div>
+                        </div>
+
+                        <!-- E -->
+                        <div
+                          class="absolute top-1/2 -translate-y-1/2 -right-2.5 w-5 h-10 cursor-ew-resize z-30 flex items-center justify-center group/h touch-none"
+                          onpointerdown={(e) => startDrag(e, 'e')}
+                          role="slider"
+                          tabindex="0"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(cropBox.width * 100)}
+                          aria-label="Resize crop right edge"
+                        >
+                          <div class="w-1.5 h-6 bg-white rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.9)] border border-neutral-900 group-hover/h:bg-emerald-300 group-hover/h:scale-110 transition-all pointer-events-none"></div>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
 
               <!-- Text Overlay Caption -->
               {#if overlayText.trim()}
@@ -1585,6 +3084,58 @@
                 </div>
               {/if}
             </div>
+
+            <!-- Floating Picasa Straighten Control Bar -->
+            {#if activeTool === 'straighten'}
+              <div
+                class="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#282828]/95 backdrop-blur-md rounded-full px-5 py-2.5 border border-white/20 shadow-2xl flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-3 duration-200 select-none"
+              >
+                <!-- Quick Auto-Level Recommendation Pill -->
+                {#if straightenSuggestions.length > 0}
+                  <button
+                    type="button"
+                    onclick={() => selectStraightenSuggestion(straightenSuggestions[0])}
+                    class="px-3 py-1 rounded-full bg-cyan-950/70 hover:bg-cyan-900/90 active:bg-cyan-800 text-cyan-300 text-xs font-semibold tracking-wide transition-colors cursor-pointer border border-cyan-500/40 flex items-center gap-1.5 shadow-sm"
+                    title="Auto-level: {straightenSuggestions[0].label} ({formatStraightenAngle(straightenSuggestions[0].angle)})"
+                  >
+                    <span class="text-[11px] font-bold">Auto</span>
+                    <span class="font-mono text-[10px] text-cyan-200 font-bold">
+                      {formatStraightenAngle(straightenSuggestions[0].angle)}
+                    </span>
+                  </button>
+                  <div class="h-4 w-px bg-white/20"></div>
+                {/if}
+
+                <div class="flex items-center gap-3 w-56">
+                  <input
+                    type="range"
+                    min="-45"
+                    max="45"
+                    step="0.1"
+                    bind:value={straightenAngle}
+                    class="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-600 rounded-lg appearance-none"
+                  />
+                  <span class="font-mono text-xs font-semibold text-cyan-300 w-12 text-right">
+                    {formatStraightenAngle(straightenAngle)}
+                  </span>
+                </div>
+                <div class="h-4 w-px bg-white/20"></div>
+                <button
+                  type="button"
+                  onclick={handleApplyStraighten}
+                  class="px-4 py-1 rounded bg-[#484848] hover:bg-[#585858] active:bg-[#383838] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border border-white/15"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onclick={handleCancelStraighten}
+                  class="px-4 py-1 rounded bg-[#484848] hover:bg-[#585858] active:bg-[#383838] text-neutral-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border border-white/15"
+                >
+                  Cancel
+                </button>
+              </div>
+            {/if}
           </div>
         {:else}
           <!-- A/B Split Side-by-Side Comparison -->
@@ -1609,13 +3160,13 @@
               <div
                 class="relative flex items-center justify-center select-none"
                 style="
-                  transform: rotate({visualRotation + straightenAngle}deg);
+                  transform: rotate({effectiveCanvasRotation}deg);
                   transform-origin: center center;
-                  transition: transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1);
+                  transition: {isTransitioning ? 'transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none'};
                 "
               >
                 <img
-                  src={getFullImageUrl(currentPhoto, cacheBuster)}
+                  src={activeImageSrc}
                   alt="Current edited file"
                   class="max-h-[calc(100vh-180px)] max-w-full rounded-sm object-contain"
                   style="filter: {liveFilterStyle};"

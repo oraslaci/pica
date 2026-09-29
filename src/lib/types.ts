@@ -22,6 +22,7 @@ export interface Photo {
   orientation: number | null;
   is_favorite: boolean;
   thumbnail_path: string | null;
+  edit_rotation?: number | null;
 }
 
 export interface FolderWithPhotos {
@@ -48,6 +49,15 @@ export interface AppSettings {
   hide_originals: boolean;
 }
 
+export interface EditStep {
+  step_id: number;
+  op: string;
+  params: Record<string, any>;
+  timestamp: number;
+  render_file?: string | null;
+  cumulative_rotation?: number;
+}
+
 export interface EditSessionState {
   photo_id: number;
   file_path: string;
@@ -59,8 +69,12 @@ export interface EditSessionState {
   cumulative_rotation: number;
   has_backup: boolean;
   backup_path?: string | null;
+  preview_path?: string | null;
   has_conflict: boolean;
   is_committed: boolean;
+  session_dir?: string | null;
+  session_manifest_path?: string | null;
+  steps?: EditStep[];
 }
 
 export interface EditResult {
@@ -68,5 +82,22 @@ export interface EditResult {
   photo: Photo | null;
   session_state: EditSessionState;
   message: string | null;
+}
+
+export interface CropSuggestion {
+  id: number;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface StraightenSuggestion {
+  id: number;
+  label: string;
+  angle: number;
+  confidence: number;
+  description: string;
 }
 
