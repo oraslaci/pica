@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Pica - Offline-first photo manager and non-destructive editor inspired by Google Picasa"
 authors = ["Pica Contributors"]
 license-file = "../LICENSE"
-repository = ""
+repository = "https://github.com/oraslaci/pica"
 edition = "2021"
 rust-version = "1.77.2"
 

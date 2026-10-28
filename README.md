@@ -54,7 +54,7 @@ sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential cur
 
 ### 2. Clone & Launch in Development Mode
 ```bash
-git clone https://github.com/your-username/pica.git && cd pica && npm install && npm run tauri dev
+git clone https://github.com/oraslaci/pica.git && cd pica && npm install && npm run tauri dev
 ```
 
 ### 3. Build a Clean Release Binary (Hides Unfinished UI)
