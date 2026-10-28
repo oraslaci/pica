@@ -1,7 +1,0 @@
-#includeonce macros.tre
-Property button_state_decrect_n globalbuttons/chip_green_n
-Property button_state_decrect_p globalbuttons/chip_green_n
-Property button_state_decrect_h globalbuttons/chip_green_n
-Property typecolor FFFFFFFF FFFFFFFF FFFFFFFF
-Property fontsize 13
-

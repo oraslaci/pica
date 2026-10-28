@@ -86,6 +86,58 @@ struct StraightenSuggestionsReq {
     photo_id: i64,
 }
 
+#[derive(Deserialize)]
+struct DetectRedEyesReq {
+    photo_id: i64,
+}
+
+#[derive(Deserialize)]
+struct RedEyeReq {
+    photo_id: i64,
+    boxes: Vec<crate::models::RedEyeBox>,
+}
+
+#[derive(Deserialize)]
+struct RetouchReq {
+    photo_id: i64,
+    spots: Vec<crate::models::RetouchSpot>,
+}
+
+#[derive(Deserialize)]
+struct TextReq {
+    photo_id: i64,
+    items: Vec<crate::models::TextItem>,
+    overlay_base64: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FillLightReq {
+    photo_id: i64,
+    amount: f32,
+}
+
+#[derive(Deserialize)]
+struct FaceSettingsReq {
+    enabled: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct FaceTimingToggleReq {
+    enabled: bool,
+}
+
+#[derive(Deserialize)]
+struct FaceFolderDetectReq {
+    folder_id: i64,
+    enabled: bool,
+}
+
+#[derive(Deserialize)]
+struct RenamePersonReq {
+    person_id: i64,
+    name: String,
+}
+
 pub fn start_http_server(state: AppState, port: u16) {
     let addr = format!("127.0.0.1:{}", port);
     let server = match Server::http(&addr) {
@@ -217,6 +269,7 @@ fn handle_request(
                         scan_mode: req.scan_mode.clone(),
                         last_scanned: None,
                         photo_count: 0,
+                        face_detect_enabled: true,
                     };
 
                     // Trigger scan
@@ -361,6 +414,60 @@ fn handle_request(
             .with_header(json_header);
     }
 
+    // GET /api/debug/face-timings — get timing stats and recent records
+    if url.starts_with("/api/debug/face-timings") && !url.contains("export") && method == &Method::Get {
+        let stats = state.faces.get_timing_stats();
+        let records = state.faces.get_timing_records(Some(100));
+        let response_data = serde_json::json!({
+            "stats": stats,
+            "records": records,
+        });
+        return Response::from_string(serde_json::to_string(&response_data).unwrap_or_default())
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/debug/face-timings/toggle — enable or disable timing recordings
+    if url == "/api/debug/face-timings/toggle" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<FaceTimingToggleReq>(&body) {
+            let _ = state.faces.set_timing_recording(req.enabled);
+            return Response::from_string(r#"{"status":"ok"}"#)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/debug/face-timings/clear — clear in-memory records and disk CSV
+    if url == "/api/debug/face-timings/clear" && method == &Method::Post {
+        state.faces.clear_timing_records();
+        return Response::from_string(r#"{"status":"ok"}"#)
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // GET /api/debug/face-timings/export.csv — export raw CSV
+    if (url == "/api/debug/face-timings/export.csv" || url == "/api/debug/face-timings/export") && method == &Method::Get {
+        let csv = state.faces.export_timing_csv();
+        let csv_header = tiny_http::Header::from_bytes(
+            &b"Content-Type"[..],
+            &b"text/csv; charset=utf-8"[..],
+        ).unwrap();
+        let disposition_header = tiny_http::Header::from_bytes(
+            &b"Content-Disposition"[..],
+            &b"attachment; filename=\"face_scan_timings.csv\""[..],
+        ).unwrap();
+        return Response::from_string(csv)
+            .with_header(cors_header)
+            .with_header(csv_header)
+            .with_header(disposition_header);
+    }
+
     // GET /api/library (folders with photos)
     if url == "/api/library" && method == &Method::Get {
         let folders = state.db.get_folders().unwrap_or_default();
@@ -434,6 +541,31 @@ fn handle_request(
                 .with_header(cors_header)
                 .with_header(json_header);
         }
+    }
+
+    // GET /api/photo/metadata?id=X or ?photo_id=X
+    if (url.starts_with("/api/photo/metadata?") || url.starts_with("/api/metadata?")) && method == &Method::Get {
+        let id_opt = url
+            .split("photo_id=")
+            .nth(1)
+            .or_else(|| url.split("id=").nth(1))
+            .and_then(|s| s.split('&').next())
+            .and_then(|s| s.parse::<i64>().ok());
+
+        if let Some(photo_id) = id_opt {
+            if let Ok(Some(photo)) = state.db.get_photo_by_id(photo_id) {
+                if let Ok(meta) = Scanner::extract_full_metadata(&photo, &state.db) {
+                    let json = serde_json::to_string(&meta).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Photo or metadata not found"}"#)
+            .with_status_code(StatusCode(404))
+            .with_header(cors_header)
+            .with_header(json_header);
     }
 
     // GET /api/edit/session?photo_id=X
@@ -695,6 +827,384 @@ fn handle_request(
         }
         return Response::from_string(r#"{"error":"Invalid request"}"#)
             .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/detect_red_eyes
+    if url == "/api/edit/detect_red_eyes" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<DetectRedEyesReq>(&body) {
+            let photo_res = state.db.get_photo_by_id(req.photo_id).map_err(|e| e.to_string());
+            match photo_res {
+                Ok(Some(photo)) => {
+                    match state.editor.auto_detect_red_eyes(&photo, state.faces.detector.as_ref()) {
+                        Ok(boxes) => {
+                            let json = serde_json::to_string(&boxes).unwrap_or_default();
+                            return Response::from_string(json)
+                                .with_header(cors_header)
+                                .with_header(json_header);
+                        }
+                        Err(err) => {
+                            return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                                .with_status_code(StatusCode(400))
+                                .with_header(cors_header)
+                                .with_header(json_header);
+                        }
+                    }
+                }
+                _ => {
+                    return Response::from_string(r#"{"error":"Photo not found"}"#)
+                        .with_status_code(StatusCode(404))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/redeye
+    if url == "/api/edit/redeye" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<RedEyeReq>(&body) {
+            match state.editor.apply_redeye(&state.db, &state.thumbnailer, req.photo_id, req.boxes) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/retouch
+    if url == "/api/edit/retouch" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<RetouchReq>(&body) {
+            match state.editor.apply_retouch(&state.db, &state.thumbnailer, req.photo_id, req.spots) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/text
+    if url == "/api/edit/text" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<TextReq>(&body) {
+            match state.editor.apply_text(&state.db, &state.thumbnailer, req.photo_id, req.items, req.overlay_base64) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/lucky (or /api/edit/enhance)
+    if (url == "/api/edit/lucky" || url == "/api/edit/enhance") && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.apply_feeling_lucky(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/autocontrast
+    if url == "/api/edit/autocontrast" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.apply_auto_contrast(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/autocolor
+    if url == "/api/edit/autocolor" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<PhotoActionReq>(&body) {
+            match state.editor.apply_auto_color(&state.db, &state.thumbnailer, req.photo_id) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // POST /api/edit/filllight
+    if (url == "/api/edit/filllight" || url == "/api/edit/fill") && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<FillLightReq>(&body) {
+            match state.editor.apply_fill_light(&state.db, &state.thumbnailer, req.photo_id, req.amount) {
+                Ok(res) => {
+                    let json = serde_json::to_string(&res).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(err) => {
+                    return Response::from_string(format!(r#"{{"error":"{}"}}"#, err))
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
+    }
+
+    // GET /api/faces/settings
+    if url == "/api/faces/settings" && method == &Method::Get {
+        let settings = state.faces.get_settings();
+        let json = serde_json::to_string(&settings).unwrap_or_default();
+        return Response::from_string(json)
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/faces/settings
+    if url == "/api/faces/settings" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<FaceSettingsReq>(&body) {
+            if let Some(enabled) = req.enabled {
+                let _ = state.faces.set_enabled(enabled, state.is_scanning.clone());
+            }
+            return Response::from_string(r#"{"status":"ok"}"#)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+    }
+
+    // POST /api/faces/folder/detect
+    if url == "/api/faces/folder/detect" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<FaceFolderDetectReq>(&body) {
+            let _ = state.faces.update_folder_face_detect(req.folder_id, req.enabled, state.is_scanning.clone());
+            return Response::from_string(r#"{"status":"ok"}"#)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+    }
+
+    // GET /api/faces/collections
+    if url == "/api/faces/collections" && method == &Method::Get {
+        if let Ok(cols) = state.faces.get_collections() {
+            let json = serde_json::to_string(&cols).unwrap_or_default();
+            return Response::from_string(json)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+    }
+
+    // GET /api/faces/photo?id={photo_id}
+    if url.starts_with("/api/faces/photo") && method == &Method::Get {
+        if let Some(pos) = url.find("id=") {
+            let s = &url[pos + 3..];
+            let id_str = s.split('&').next().unwrap_or(s);
+            if let Ok(photo_id) = id_str.parse::<i64>() {
+                if let Ok(faces) = state.faces.get_faces_for_photo(photo_id) {
+                    let json = serde_json::to_string(&faces).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string("[]")
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // GET /api/faces/person?id={person_id}
+    if url.starts_with("/api/faces/person") && method == &Method::Get {
+        if let Some(pos) = url.find("id=") {
+            let s = &url[pos + 3..];
+            let id_str = s.split('&').next().unwrap_or(s);
+            if let Ok(person_id) = id_str.parse::<i64>() {
+                if let Ok(photos) = state.faces.get_photos_for_person(person_id) {
+                    let json = serde_json::to_string(&photos).unwrap_or_default();
+                    return Response::from_string(json)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string("[]")
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/faces/person/rename
+    if url == "/api/faces/person/rename" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<RenamePersonReq>(&body) {
+            let _ = state.faces.update_person_name(req.person_id, &req.name);
+            return Response::from_string(r#"{"status":"ok"}"#)
+                .with_header(cors_header)
+                .with_header(json_header);
+        }
+    }
+
+    // POST /api/faces/scan
+    if url == "/api/faces/scan" && method == &Method::Post {
+        state.faces.trigger_scan(state.is_scanning.clone());
+        return Response::from_string(r#"{"status":"ok"}"#)
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/faces/recluster
+    if url == "/api/faces/recluster" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        #[derive(serde::Deserialize)]
+        struct ReclusterReq {
+            threshold: Option<f32>,
+        }
+        let threshold = serde_json::from_str::<ReclusterReq>(&body)
+            .ok()
+            .and_then(|r| r.threshold);
+        match state.faces.recluster_all_faces(threshold) {
+            Ok(count) => {
+                return Response::from_string(format!(r#"{{"status":"ok","people_count":{}}}"#, count))
+                    .with_header(cors_header)
+                    .with_header(json_header);
+            }
+            Err(e) => {
+                return Response::from_string(format!(r#"{{"error":"{}"}}"#, e))
+                    .with_status_code(StatusCode(500))
+                    .with_header(cors_header)
+                    .with_header(json_header);
+            }
+        }
+    }
+
+    // POST /api/faces/realign
+    if url == "/api/faces/realign" && method == &Method::Post {
+        match state.faces.realign_all_embeddings() {
+            Ok((updated_faces, people_count)) => {
+                return Response::from_string(format!(
+                    r#"{{"status":"ok","updated_faces":{},"people_count":{}}}"#,
+                    updated_faces, people_count
+                ))
+                .with_header(cors_header)
+                .with_header(json_header);
+            }
+            Err(e) => {
+                return Response::from_string(format!(r#"{{"error":"{}"}}"#, e))
+                    .with_status_code(StatusCode(500))
+                    .with_header(cors_header)
+                    .with_header(json_header);
+            }
+        }
+    }
+
+    // GET /api/faces/{id}/crop
+    if url.starts_with("/api/faces/") && url.ends_with("/crop") && method == &Method::Get {
+        let part = url.trim_start_matches("/api/faces/").trim_end_matches("/crop");
+        if let Ok(face_id) = part.parse::<i64>() {
+            if let Ok(Some(bytes)) = state.faces.get_face_chip(face_id) {
+                let img_header = Header::from_bytes(&b"Content-Type"[..], &b"image/jpeg"[..]).unwrap();
+                let cache_header = Header::from_bytes(&b"Cache-Control"[..], &b"public, max-age=86400"[..]).unwrap();
+                return Response::from_data(bytes)
+                    .with_header(cors_header)
+                    .with_header(img_header)
+                    .with_header(cache_header);
+            }
+        }
+        return Response::from_string("")
+            .with_status_code(StatusCode(404))
             .with_header(cors_header);
     }
 

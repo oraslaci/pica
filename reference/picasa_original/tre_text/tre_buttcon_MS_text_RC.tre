@@ -1,8 +1,0 @@
-#includeonce macros.tre
-Property button_state_decrect_n globalbuttons/mid_segment_n
-Property button_state_decrect_p globalbuttons/mid_segment_p
-Property button_state_decrect_h globalbuttons/mid_segment_h
-Property button_buttcon
-m_buttontypecolor
-cd -label
-m_buttonfontC

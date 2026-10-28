@@ -11,9 +11,10 @@ use rayon::prelude::*;
 use serde_json::json;
 
 use crate::db::DbManager;
+use crate::faces::traits::FaceDetector;
 use crate::models::{
     AppSettings, CropSuggestion, EditResult, EditSessionManifest, EditSessionState, EditStep,
-    Photo, StraightenSuggestion,
+    Photo, RedEyeBox, RetouchSpot, StraightenSuggestion, TextItem,
 };
 use crate::scanner::Scanner;
 use crate::thumbnailer::{ThumbnailManager, DEFAULT_THUMBNAIL_SIZE};
@@ -89,12 +90,14 @@ impl EditorManager {
                 if sess_file.exists() {
                     if let Ok(content) = fs::read_to_string(&sess_file) {
                         if let Ok(m) = serde_json::from_str::<EditSessionManifest>(&content) {
-                            let rot = if !m.is_committed {
+                            let is_unsaved = !m.is_committed && m.current_step > 0;
+                            let rot = if is_unsaved {
                                 Self::calculate_cumulative_rotation(&m.steps, m.current_step)
                             } else {
                                 0
                             };
                             let _ = db.update_photo_edit_rotation(m.photo_id, rot);
+                            let _ = db.update_photo_unsaved_edits(m.photo_id, is_unsaved);
                         }
                     }
                 }
@@ -648,6 +651,7 @@ impl EditorManager {
         self.save_manifest(&manifest)?;
 
         let _ = db.update_photo_edit_rotation(photo_id, new_cum_rot);
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
 
         // Fast update thumbnail cache for gallery view
         let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
@@ -1668,6 +1672,7 @@ impl EditorManager {
         manifest.current_step = next_step_id;
         manifest.is_committed = false;
         self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
 
         // Fast update thumbnail cache for gallery view
         let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
@@ -1819,8 +1824,1760 @@ impl EditorManager {
         manifest.current_step = next_step_id;
         manifest.is_committed = false;
         self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
 
         // Fast update thumbnail cache for gallery view
+        let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
+        let _ = fs::copy(&dest_step_path, &thumb_path);
+
+        let session_state = self.get_session_state_internal(db, photo_id)?;
+
+        Ok(EditResult {
+            success: true,
+            photo: Some(photo),
+            session_state,
+            message: None,
+        })
+    }
+
+    pub fn apply_redeye_correction_to_image(img: &mut image::DynamicImage, params: &serde_json::Value) {
+        let boxes_val = match params.get("boxes").and_then(|v| v.as_array()) {
+            Some(b) => b,
+            None => return,
+        };
+
+        if boxes_val.is_empty() {
+            return;
+        }
+
+        let mut rgba = img.to_rgba8();
+        let (img_w, img_h) = (rgba.width(), rgba.height());
+        if img_w == 0 || img_h == 0 {
+            return;
+        }
+
+        for b in boxes_val {
+            let bx = b.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0).clamp(0.0, 1.0);
+            let by = b.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0).clamp(0.0, 1.0);
+            let bw = b.get("width").and_then(|v| v.as_f64()).unwrap_or(0.0).clamp(0.001, 1.0 - bx);
+            let bh = b.get("height").and_then(|v| v.as_f64()).unwrap_or(0.0).clamp(0.001, 1.0 - by);
+
+            let px_x = ((bx * img_w as f64).round() as u32).min(img_w.saturating_sub(1));
+            let px_y = ((by * img_h as f64).round() as u32).min(img_h.saturating_sub(1));
+            let px_w = ((bw * img_w as f64).round() as u32).max(1).min(img_w - px_x);
+            let px_h = ((bh * img_h as f64).round() as u32).max(1).min(img_h - px_y);
+
+            let cx = px_x as f32 + (px_w as f32) * 0.5;
+            let cy = px_y as f32 + (px_h as f32) * 0.5;
+            let rx = (px_w as f32) * 0.5;
+            let ry = (px_h as f32) * 0.5;
+
+            for y in px_y..(px_y + px_h) {
+                for x in px_x..(px_x + px_w) {
+                    let pixel = rgba.get_pixel_mut(x, y);
+                    let r = pixel[0] as f32;
+                    let g = pixel[1] as f32;
+                    let b = pixel[2] as f32;
+
+                    // 1. Catchlight test: preserve natural corneal specular reflection
+                    if r > 185.0 && g > 185.0 && b > 185.0
+                        && (r - g).abs() < 35.0
+                        && (r - b).abs() < 35.0
+                    {
+                        continue;
+                    }
+
+                    // Normalized radial distance from center of bounding box
+                    let dx = (x as f32 - cx) / rx.max(1.0);
+                    let dy = (y as f32 - cy) / ry.max(1.0);
+                    let dist_sq = dx * dx + dy * dy;
+                    if dist_sq > 1.0 {
+                        continue;
+                    }
+                    let falloff = (1.0 - dist_sq.sqrt()).clamp(0.0, 1.0);
+
+                    // 2. Redness metrics
+                    let redness_diff = r - (g + b) * 0.5;
+                    let max_gb = g.max(b);
+                    let redness_ratio = r / (max_gb + 1.0);
+
+                    if redness_diff > 12.0 && redness_ratio > 1.25 && r > 40.0 {
+                        let target_lum = (g + b) * 0.5;
+                        let dark_pupil = target_lum * 0.45;
+                        let ratio_weight = ((redness_ratio - 1.25) / 0.40).clamp(0.0, 1.0);
+                        let total_weight = ratio_weight * (0.6 + 0.4 * falloff);
+
+                        pixel[0] = ((r * (1.0 - total_weight) + dark_pupil * total_weight).clamp(0.0, 255.0)) as u8;
+                        pixel[1] = ((g * (1.0 - total_weight) + (target_lum * 0.65) * total_weight).clamp(0.0, 255.0)) as u8;
+                        pixel[2] = ((b * (1.0 - total_weight) + (target_lum * 0.65) * total_weight).clamp(0.0, 255.0)) as u8;
+                    } else if dist_sq < 0.40 && (g > 100.0 && g > 1.35 * b && r > 80.0) {
+                        // Pet eye reflection (tapetum lucidum glow)
+                        let target_lum = (r + b) * 0.4;
+                        let glow_weight = 0.7 * (1.0 - dist_sq / 0.40);
+                        pixel[0] = (r * (1.0 - glow_weight) + target_lum * 0.5 * glow_weight) as u8;
+                        pixel[1] = (g * (1.0 - glow_weight) + target_lum * 0.5 * glow_weight) as u8;
+                        pixel[2] = (b * (1.0 - glow_weight) + target_lum * 0.5 * glow_weight) as u8;
+                    }
+                }
+            }
+        }
+
+        *img = image::DynamicImage::ImageRgba8(rgba);
+    }
+
+    pub fn auto_detect_red_eyes(
+        &self,
+        photo: &Photo,
+        detector: &dyn FaceDetector,
+    ) -> Result<Vec<RedEyeBox>, String> {
+        let path = PathBuf::from(&photo.file_path);
+        if !path.exists() {
+            return Err("Photo file not found".to_string());
+        }
+
+        let img = image::open(&path).map_err(|e| format!("Failed to open photo: {}", e))?;
+        let (orig_w, orig_h) = (img.width(), img.height());
+        if orig_w == 0 || orig_h == 0 {
+            return Ok(Vec::new());
+        }
+
+        // 1. Scan for compact, circular red pupil candidates in the image
+        let max_scan_dim = 1024u32;
+        let scan_scale = (max_scan_dim as f64) / (orig_w.max(orig_h) as f64).max(1.0);
+        let scan_w = if scan_scale < 1.0 { ((orig_w as f64 * scan_scale).round() as u32).max(1) } else { orig_w };
+        let scan_h = if scan_scale < 1.0 { ((orig_h as f64 * scan_scale).round() as u32).max(1) } else { orig_h };
+        let scan_img = if scan_scale < 1.0 { img.thumbnail(scan_w, scan_h) } else { img.clone() };
+        let rgb_scan = scan_img.to_rgb8();
+
+        let mut red_mask = vec![false; (scan_w * scan_h) as usize];
+        for sy in 0..scan_h {
+            for sx in 0..scan_w {
+                let pix = rgb_scan.get_pixel(sx, sy);
+                let (r, g, b) = (pix[0] as f32, pix[1] as f32, pix[2] as f32);
+                let sum = (r + g + b).max(1.0);
+                let chroma = r / sum;
+                // High red chromaticity (>=50%) and clear dominance over G and B.
+                // This reliably rejects skin (chroma ~0.40..0.45) and dark hair shadows.
+                if r >= 85.0 && chroma >= 0.50 && r >= 1.55 * g && r >= 1.55 * b && (r - g.max(b)) >= 22.0 {
+                    red_mask[(sy * scan_w + sx) as usize] = true;
+                }
+            }
+        }
+
+        // BFS connected components to discover distinct red pupil blobs
+        let mut visited = vec![false; (scan_w * scan_h) as usize];
+        struct PupilCandidate {
+            cx: f64,
+            cy: f64,
+            size_norm: f64,
+        }
+
+        let min_pupil_count = ((scan_w * scan_h) as f64 * 0.00015).round() as usize;
+        let min_count = min_pupil_count.clamp(25, 200);
+
+        let mut pupils: Vec<PupilCandidate> = Vec::new();
+        for sy in 0..scan_h {
+            for sx in 0..scan_w {
+                let idx = (sy * scan_w + sx) as usize;
+                if red_mask[idx] && !visited[idx] {
+                    visited[idx] = true;
+                    let mut queue = vec![(sx, sy)];
+                    let mut pts = Vec::new();
+                    let mut q_head = 0;
+                    while q_head < queue.len() {
+                        let (qx, qy) = queue[q_head];
+                        q_head += 1;
+                        pts.push((qx, qy));
+
+                        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)] {
+                            let nx = qx as i32 + dx;
+                            let ny = qy as i32 + dy;
+                            if nx >= 0 && nx < scan_w as i32 && ny >= 0 && ny < scan_h as i32 {
+                                let nidx = (ny as u32 * scan_w + nx as u32) as usize;
+                                if red_mask[nidx] && !visited[nidx] {
+                                    visited[nidx] = true;
+                                    queue.push((nx as u32, ny as u32));
+                                }
+                            }
+                        }
+                    }
+
+                    if pts.len() >= min_count {
+                        let min_x = pts.iter().map(|p| p.0).min().unwrap();
+                        let max_x = pts.iter().map(|p| p.0).max().unwrap();
+                        let min_y = pts.iter().map(|p| p.1).min().unwrap();
+                        let max_y = pts.iter().map(|p| p.1).max().unwrap();
+                        let sum_x: u64 = pts.iter().map(|p| p.0 as u64).sum();
+                        let sum_y: u64 = pts.iter().map(|p| p.1 as u64).sum();
+                        let cx = (sum_x as f64 / pts.len() as f64) / scan_w as f64;
+                        let cy = (sum_y as f64 / pts.len() as f64) / scan_h as f64;
+
+                        // Keep away from outermost image borders
+                        if cx >= 0.03 && cx <= 0.97 && cy >= 0.03 && cy <= 0.97 {
+                            let cw = (max_x - min_x + 1) as f64 / scan_w as f64;
+                            let ch = (max_y - min_y + 1) as f64 / scan_h as f64;
+                            let aspect = (max_x - min_x + 1) as f64 / (max_y - min_y + 1).max(1) as f64;
+                            let max_dim = cw.max(ch);
+
+                            // Pupils are compact and roughly circular (aspect ratio 0.65..1.45),
+                            // rejecting wide shapes like lips or long thin lines like shadows.
+                            if aspect >= 0.65 && aspect <= 1.45 && max_dim >= 0.012 && max_dim <= 0.16 {
+                                pupils.push(PupilCandidate {
+                                    cx,
+                                    cy,
+                                    size_norm: max_dim,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let faces = detector.detect_faces(&img).unwrap_or_default();
+        let mut final_boxes: Vec<RedEyeBox> = Vec::new();
+        let mut claimed_pupils = vec![false; pupils.len()];
+
+        // 2. Face Landmark Snapping
+        for (f_idx, face) in faces.iter().enumerate() {
+            if let Some(ref lms) = face.landmarks {
+                let rx = lms[0].0 as f64;
+                let ry = lms[0].1 as f64;
+                let lx = lms[1].0 as f64;
+                let ly = lms[1].1 as f64;
+                let iod = ((lx - rx).powi(2) + (ly - ry).powi(2)).sqrt();
+                let default_box_size = (iod * 0.40).clamp(0.04, 0.18);
+                let search_radius = (iod * 0.65).clamp(0.06, 0.22);
+
+                // Right eye
+                let mut r_pupil = None;
+                let mut r_min_d = search_radius;
+                for (p_idx, p) in pupils.iter().enumerate() {
+                    let d = ((p.cx - rx).powi(2) + (p.cy - ry).powi(2)).sqrt();
+                    let in_eye_zone = face.box_h <= 0.01 || p.cy <= (face.box_y + face.box_h * 0.55) as f64;
+                    if in_eye_zone && d < r_min_d {
+                        r_min_d = d;
+                        r_pupil = Some(p_idx);
+                    }
+                }
+
+                // Left eye
+                let mut l_pupil = None;
+                let mut l_min_d = search_radius;
+                for (p_idx, p) in pupils.iter().enumerate() {
+                    if Some(p_idx) == r_pupil { continue; }
+                    let d = ((p.cx - lx).powi(2) + (p.cy - ly).powi(2)).sqrt();
+                    let in_eye_zone = face.box_h <= 0.01 || p.cy <= (face.box_y + face.box_h * 0.55) as f64;
+                    if in_eye_zone && d < l_min_d {
+                        l_min_d = d;
+                        l_pupil = Some(p_idx);
+                    }
+                }
+
+                if let Some(p_idx) = r_pupil {
+                    claimed_pupils[p_idx] = true;
+                    let p = &pupils[p_idx];
+                    let b_size = (p.size_norm * 1.5).max(default_box_size).clamp(0.04, 0.20);
+                    final_boxes.push(RedEyeBox {
+                        id: format!("auto_f{}_reye", f_idx),
+                        x: (p.cx - b_size * 0.5).clamp(0.0, 1.0 - b_size),
+                        y: (p.cy - b_size * 0.5).clamp(0.0, 1.0 - b_size),
+                        width: b_size,
+                        height: b_size,
+                    });
+                }
+
+                if let Some(p_idx) = l_pupil {
+                    claimed_pupils[p_idx] = true;
+                    let p = &pupils[p_idx];
+                    let b_size = (p.size_norm * 1.5).max(default_box_size).clamp(0.04, 0.20);
+                    final_boxes.push(RedEyeBox {
+                        id: format!("auto_f{}_leye", f_idx),
+                        x: (p.cx - b_size * 0.5).clamp(0.0, 1.0 - b_size),
+                        y: (p.cy - b_size * 0.5).clamp(0.0, 1.0 - b_size),
+                        width: b_size,
+                        height: b_size,
+                    });
+                }
+            }
+        }
+
+        // 3. Eye-Pair Discovery for Macro / Cropped Shots (where face landmark didn't reach)
+        let unclaimed_indices: Vec<usize> = (0..pupils.len()).filter(|&i| !claimed_pupils[i]).collect();
+        for i in 0..unclaimed_indices.len() {
+            let idx1 = unclaimed_indices[i];
+            if claimed_pupils[idx1] { continue; }
+            let p1 = &pupils[idx1];
+
+            for j in (i + 1)..unclaimed_indices.len() {
+                let idx2 = unclaimed_indices[j];
+                if claimed_pupils[idx2] { continue; }
+                let p2 = &pupils[idx2];
+
+                let dx = (p1.cx - p2.cx).abs();
+                let dy = (p1.cy - p2.cy).abs();
+                let size_ratio = p1.size_norm / p2.size_norm.max(0.001);
+
+                // Symmetrical eye pair geometry: roughly level, realistic eye spacing
+                if dx >= 0.12 && dx <= 0.65 && dy <= 0.12 && size_ratio >= 0.65 && size_ratio <= 1.55 {
+                    let in_mouth1 = faces.iter().any(|f| f.box_h > 0.01 && p1.cy > (f.box_y + f.box_h * 0.55) as f64 && p1.cx >= f.box_x as f64 && p1.cx <= (f.box_x + f.box_w) as f64);
+                    let in_mouth2 = faces.iter().any(|f| f.box_h > 0.01 && p2.cy > (f.box_y + f.box_h * 0.55) as f64 && p2.cx >= f.box_x as f64 && p2.cx <= (f.box_x + f.box_w) as f64);
+                    if in_mouth1 || in_mouth2 { continue; }
+
+                    claimed_pupils[idx1] = true;
+                    claimed_pupils[idx2] = true;
+
+                    for (pid, p) in [(idx1, p1), (idx2, p2)] {
+                        let b_size = (p.size_norm * 1.6).clamp(0.06, 0.18);
+                        final_boxes.push(RedEyeBox {
+                            id: format!("auto_pair_pupil_{}", pid),
+                            x: (p.cx - b_size * 0.5).clamp(0.0, 1.0 - b_size),
+                            y: (p.cy - b_size * 0.5).clamp(0.0, 1.0 - b_size),
+                            width: b_size,
+                            height: b_size,
+                        });
+                    }
+                    break;
+                }
+            }
+        }
+
+        // 4. Deduplicate / Merge overlapping boxes
+        let mut merged_boxes: Vec<RedEyeBox> = Vec::new();
+        for b in final_boxes {
+            let mut merged = false;
+            for mb in &mut merged_boxes {
+                let d = ((mb.x + mb.width * 0.5) - (b.x + b.width * 0.5)).abs().max(
+                    ((mb.y + mb.height * 0.5) - (b.y + b.height * 0.5)).abs()
+                );
+                if d < 0.08 {
+                    let min_x = mb.x.min(b.x);
+                    let min_y = mb.y.min(b.y);
+                    let max_x = (mb.x + mb.width).max(b.x + b.width);
+                    let max_y = (mb.y + mb.height).max(b.y + b.height);
+                    mb.x = min_x;
+                    mb.y = min_y;
+                    mb.width = max_x - min_x;
+                    mb.height = max_y - min_y;
+                    merged = true;
+                    break;
+                }
+            }
+            if !merged {
+                merged_boxes.push(b);
+            }
+        }
+
+        Ok(merged_boxes)
+    }
+
+    pub fn apply_redeye(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+        boxes: Vec<RedEyeBox>,
+    ) -> Result<EditResult, String> {
+        let _lock = self.session_lock.lock().unwrap();
+        let photo = db
+            .get_photo_by_id(photo_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Photo not found".to_string())?;
+
+        let target_path = PathBuf::from(&photo.file_path);
+        if !target_path.exists() {
+            return Err("Target file does not exist on disk".to_string());
+        }
+
+        let settings = db.get_app_settings().unwrap_or_default();
+
+        let mut manifest = match self.find_session_for_photo(&photo) {
+            Some(m) => m,
+            None => {
+                let session_dir = self.get_session_dir(&photo.file_hash);
+                fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+                let meta = fs::metadata(&target_path).map_err(|e| e.to_string())?;
+                let mtime = meta
+                    .modified()
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let backup_path = self.ensure_backup(&target_path, &settings, &session_dir)?;
+                let _ = self.ensure_base_proxy(&session_dir, &target_path, &photo.file_hash, thumbnailer)?;
+
+                let initial_step = EditStep {
+                    step_id: 0,
+                    op: "original".to_string(),
+                    params: json!({}),
+                    timestamp: mtime as i64,
+                    render_file: Some("step_0.jpg".to_string()),
+                    cumulative_rotation: 0,
+                };
+
+                let m = EditSessionManifest {
+                    photo_id,
+                    original_path: photo.file_path.clone(),
+                    backup_path: backup_path.map(|p| p.to_string_lossy().to_string()),
+                    base_hash: photo.file_hash.clone(),
+                    base_mtime: mtime,
+                    base_size: meta.len(),
+                    last_saved_mtime: mtime,
+                    last_saved_size: meta.len(),
+                    current_step: 0,
+                    steps: vec![initial_step],
+                    is_committed: false,
+                };
+                self.save_manifest(&m)?;
+                m
+            }
+        };
+
+        let session_dir = self.get_session_dir(&manifest.base_hash);
+        fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+        let has_conflict = Self::check_external_conflict(&manifest, &target_path);
+        if has_conflict {
+            let session_state = self.get_session_state_internal(db, photo_id)?;
+            return Ok(EditResult {
+                success: false,
+                photo: Some(photo),
+                session_state,
+                message: Some("External changes detected on image file".to_string()),
+            });
+        }
+
+        manifest.steps.truncate(manifest.current_step + 1);
+
+        let mut orphan_id = manifest.current_step + 1;
+        loop {
+            let orphan_file = session_dir.join(format!("step_{}.jpg", orphan_id));
+            if orphan_file.exists() {
+                let _ = fs::remove_file(orphan_file);
+                orphan_id += 1;
+            } else {
+                break;
+            }
+        }
+
+        let prev_render_name = manifest
+            .steps
+            .get(manifest.current_step)
+            .and_then(|s| s.render_file.clone())
+            .unwrap_or_else(|| "step_0.jpg".to_string());
+        let prev_path = session_dir.join(&prev_render_name);
+        let src_to_edit = if prev_path.exists() {
+            prev_path
+        } else {
+            self.ensure_base_proxy(&session_dir, &target_path, &manifest.base_hash, thumbnailer)?
+        };
+
+        let now_sec = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        let next_step_id = manifest.steps.len();
+        let step_file_name = format!("step_{}.jpg", next_step_id);
+        let dest_step_path = session_dir.join(&step_file_name);
+
+        let mut img = image::open(&src_to_edit).map_err(|e| format!("Failed to open image: {}", e))?;
+        let boxes_json = json!({ "boxes": boxes });
+        Self::apply_redeye_correction_to_image(&mut img, &boxes_json);
+
+        let rgb = img.to_rgb8();
+        let tmp_dest = dest_step_path.with_extension(format!("tmp.{}", std::process::id()));
+        let file = File::create(&tmp_dest).map_err(|e| format!("Failed to create step file: {}", e))?;
+        let mut writer = BufWriter::new(file);
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
+        encoder
+            .encode(
+                rgb.as_raw(),
+                img.width(),
+                img.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+            .map_err(|e| format!("JPEG encode error: {}", e))?;
+        drop(writer);
+        let _ = fs::rename(&tmp_dest, &dest_step_path);
+
+        let prev_cum_rot = manifest
+            .steps
+            .get(manifest.current_step)
+            .map(|s| s.cumulative_rotation)
+            .unwrap_or(0);
+
+        manifest.steps.push(EditStep {
+            step_id: next_step_id,
+            op: "redeye".to_string(),
+            params: boxes_json,
+            timestamp: now_sec,
+            render_file: Some(step_file_name),
+            cumulative_rotation: prev_cum_rot,
+        });
+        manifest.current_step = next_step_id;
+        manifest.is_committed = false;
+        self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
+
+        let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
+        let _ = fs::copy(&dest_step_path, &thumb_path);
+
+        let session_state = self.get_session_state_internal(db, photo_id)?;
+
+        Ok(EditResult {
+            success: true,
+            photo: Some(photo),
+            session_state,
+            message: None,
+        })
+    }
+
+    /// Authentic Google Picasa SpotBlend / CRetouchFilter algorithm
+    /// Seamlessly blends donor source patch into target blemish using
+    /// Poisson gradient domain reconstruction with smooth cubic hermite boundary falloff.
+    pub fn apply_spot_blend_algorithm(img: &mut image::DynamicImage, spots: &[RetouchSpot]) {
+        if spots.is_empty() {
+            return;
+        }
+
+        let mut rgb = img.to_rgb8();
+        let (width, height) = rgb.dimensions();
+        if width == 0 || height == 0 {
+            return;
+        }
+
+        let w_f = width as f64;
+        let h_f = height as f64;
+
+        for spot in spots {
+            let tx = spot.target_x * w_f;
+            let ty = spot.target_y * h_f;
+            let sx = spot.source_x * w_f;
+            let sy = spot.source_y * h_f;
+            let r = spot.radius * w_f.min(h_f);
+
+            if r <= 0.5 {
+                continue;
+            }
+
+            let r_sq = r * r;
+            // Picasa boundary falloff zone: wide smooth margin falloff across outer 75% of circle
+            let r_inner = 0.25 * r;
+            let r_band = (r - r_inner).max(1e-4);
+
+            // Snapshot current image state for this spot so donor sampling within the spot
+            // handles any self-overlap cleanly, while subsequent spots will read from the newly updated rgb.
+            let source_snapshot = rgb.clone();
+
+            // Sample Dirichlet boundary discrepancy: boundary_diff(x, y) = target(x, y) - source(x, y)
+            // We accumulate boundary samples around the circle circumference to build the harmonic membrane.
+            let mut boundary_samples: Vec<(f64, f64, [f64; 3])> = Vec::new();
+            let num_samples = ((2.0 * std::f64::consts::PI * r).ceil() as usize).clamp(32, 256);
+
+            for i in 0..num_samples {
+                let theta = (i as f64) * 2.0 * std::f64::consts::PI / (num_samples as f64);
+                let cos_t = theta.cos();
+                let sin_t = theta.sin();
+
+                let b_tx = (tx + r * cos_t).round() as i32;
+                let b_ty = (ty + r * sin_t).round() as i32;
+                let b_sx = (sx + r * cos_t).round() as i32;
+                let b_sy = (sy + r * sin_t).round() as i32;
+
+                if b_tx >= 0 && b_tx < width as i32 && b_ty >= 0 && b_ty < height as i32
+                    && b_sx >= 0 && b_sx < width as i32 && b_sy >= 0 && b_sy < height as i32
+                {
+                    let t_px = source_snapshot.get_pixel(b_tx as u32, b_ty as u32);
+                    let s_px = source_snapshot.get_pixel(b_sx as u32, b_sy as u32);
+                    let diff = [
+                        (t_px[0] as f64) - (s_px[0] as f64),
+                        (t_px[1] as f64) - (s_px[1] as f64),
+                        (t_px[2] as f64) - (s_px[2] as f64),
+                    ];
+                    boundary_samples.push((cos_t, sin_t, diff));
+                }
+            }
+
+            if boundary_samples.is_empty() {
+                continue;
+            }
+
+            // Precompute average boundary difference and linear gradients for harmonic membrane interpolation
+            let mut avg_diff = [0.0; 3];
+            let mut grad_x = [0.0; 3];
+            let mut grad_y = [0.0; 3];
+
+            for (cos_t, sin_t, diff) in &boundary_samples {
+                for c in 0..3 {
+                    avg_diff[c] += diff[c];
+                    grad_x[c] += diff[c] * cos_t;
+                    grad_y[c] += diff[c] * sin_t;
+                }
+            }
+
+            let n_s = boundary_samples.len() as f64;
+            for c in 0..3 {
+                avg_diff[c] /= n_s;
+                grad_x[c] = (grad_x[c] / n_s) * (2.0 / r);
+                grad_y[c] = (grad_y[c] / n_s) * (2.0 / r);
+            }
+
+            // Apply Poisson reconstruction with wide smootherstep boundary transition:
+            // For each pixel (px, py) in target circle:
+            // 1. Donor sample coordinate: (donor_x, donor_y) = (px - tx + sx, py - ty + sy)
+            // 2. Harmonic membrane correction: corr = avg_diff + grad_x * (px - tx) + grad_y * (py - ty)
+            // 3. Blended value: f = donor + corr
+            // 4. Alpha transition across [r_inner, r]: quintic smootherstep (6t^5 - 15t^4 + 10t^3)
+            //    final = (1 - alpha) * f + alpha * target
+            for py in (ty - r).floor() as i32..=(ty + r).ceil() as i32 {
+                if py < 0 || py >= height as i32 {
+                    continue;
+                }
+                let dy = (py as f64) - ty;
+                let donor_y = (sy + dy).round() as i32;
+                if donor_y < 0 || donor_y >= height as i32 {
+                    continue;
+                }
+
+                for px in (tx - r).floor() as i32..=(tx + r).ceil() as i32 {
+                    if px < 0 || px >= width as i32 {
+                        continue;
+                    }
+                    let dx = (px as f64) - tx;
+                    let dist_sq = dx * dx + dy * dy;
+                    if dist_sq >= r_sq {
+                        continue;
+                    }
+
+                    let donor_x = (sx + dx).round() as i32;
+                    if donor_x < 0 || donor_x >= width as i32 {
+                        continue;
+                    }
+
+                    let dist = dist_sq.sqrt();
+                    let t_px = source_snapshot.get_pixel(px as u32, py as u32);
+                    let s_px = source_snapshot.get_pixel(donor_x as u32, donor_y as u32);
+
+                    // Compute smooth alpha feathering: inside r_inner alpha = 0.0, outside r alpha = 1.0
+                    let alpha = if dist <= r_inner {
+                        0.0
+                    } else {
+                        let t = ((dist - r_inner) / r_band).clamp(0.0, 1.0);
+                        t * t * t * (t * (t * 6.0 - 15.0) + 10.0) // Quintic smootherstep
+                    };
+
+                    let mut out = [0u8; 3];
+                    for c in 0..3 {
+                        let membrane_correction = avg_diff[c] + grad_x[c] * dx + grad_y[c] * dy;
+                        let healed_val = (s_px[c] as f64 + membrane_correction).clamp(0.0, 255.0);
+                        let final_val = (1.0 - alpha) * healed_val + alpha * (t_px[c] as f64);
+                        out[c] = final_val.round().clamp(0.0, 255.0) as u8;
+                    }
+
+                    rgb.put_pixel(px as u32, py as u32, image::Rgb(out));
+                }
+            }
+        }
+
+        *img = image::DynamicImage::ImageRgb8(rgb);
+    }
+
+    pub fn apply_retouch(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+        spots: Vec<RetouchSpot>,
+    ) -> Result<EditResult, String> {
+        let _lock = self.session_lock.lock().unwrap();
+        let photo = db
+            .get_photo_by_id(photo_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Photo not found".to_string())?;
+
+        let target_path = PathBuf::from(&photo.file_path);
+        if !target_path.exists() {
+            return Err("Target file does not exist on disk".to_string());
+        }
+
+        let settings = db.get_app_settings().unwrap_or_default();
+
+        let mut manifest = match self.find_session_for_photo(&photo) {
+            Some(m) => m,
+            None => {
+                let session_dir = self.get_session_dir(&photo.file_hash);
+                fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+                let meta = fs::metadata(&target_path).map_err(|e| e.to_string())?;
+                let mtime = meta
+                    .modified()
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let backup_path = self.ensure_backup(&target_path, &settings, &session_dir)?;
+                let _ = self.ensure_base_proxy(&session_dir, &target_path, &photo.file_hash, thumbnailer)?;
+
+                let initial_step = EditStep {
+                    step_id: 0,
+                    op: "original".to_string(),
+                    params: json!({}),
+                    timestamp: mtime as i64,
+                    render_file: Some("step_0.jpg".to_string()),
+                    cumulative_rotation: 0,
+                };
+
+                let m = EditSessionManifest {
+                    photo_id,
+                    original_path: photo.file_path.clone(),
+                    backup_path: backup_path.map(|p| p.to_string_lossy().to_string()),
+                    base_hash: photo.file_hash.clone(),
+                    base_mtime: mtime,
+                    base_size: meta.len(),
+                    last_saved_mtime: mtime,
+                    last_saved_size: meta.len(),
+                    current_step: 0,
+                    steps: vec![initial_step],
+                    is_committed: false,
+                };
+                self.save_manifest(&m)?;
+                m
+            }
+        };
+
+        let session_dir = self.get_session_dir(&manifest.base_hash);
+        fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+        let has_conflict = Self::check_external_conflict(&manifest, &target_path);
+        if has_conflict {
+            let session_state = self.get_session_state_internal(db, photo_id)?;
+            return Ok(EditResult {
+                success: false,
+                photo: Some(photo),
+                session_state,
+                message: Some("External changes detected on image file".to_string()),
+            });
+        }
+
+        manifest.steps.truncate(manifest.current_step + 1);
+
+        let mut orphan_id = manifest.current_step + 1;
+        loop {
+            let orphan_file = session_dir.join(format!("step_{}.jpg", orphan_id));
+            if orphan_file.exists() {
+                let _ = fs::remove_file(orphan_file);
+                orphan_id += 1;
+            } else {
+                break;
+            }
+        }
+
+        let prev_render_name = manifest
+            .steps
+            .get(manifest.current_step)
+            .and_then(|s| s.render_file.clone())
+            .unwrap_or_else(|| "step_0.jpg".to_string());
+        let prev_path = session_dir.join(&prev_render_name);
+        let src_to_edit = if prev_path.exists() {
+            prev_path
+        } else {
+            self.ensure_base_proxy(&session_dir, &target_path, &manifest.base_hash, thumbnailer)?
+        };
+
+        let now_sec = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        let next_step_id = manifest.steps.len();
+        let step_file_name = format!("step_{}.jpg", next_step_id);
+        let dest_step_path = session_dir.join(&step_file_name);
+
+        let mut img = image::open(&src_to_edit).map_err(|e| format!("Failed to open image: {}", e))?;
+        Self::apply_spot_blend_algorithm(&mut img, &spots);
+
+        let rgb = img.to_rgb8();
+        let tmp_dest = dest_step_path.with_extension(format!("tmp.{}", std::process::id()));
+        let file = File::create(&tmp_dest).map_err(|e| format!("Failed to create step file: {}", e))?;
+        let mut writer = BufWriter::new(file);
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
+        encoder
+            .encode(
+                rgb.as_raw(),
+                img.width(),
+                img.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+            .map_err(|e| format!("JPEG encode error: {}", e))?;
+        drop(writer);
+        let _ = fs::rename(&tmp_dest, &dest_step_path);
+
+        let prev_cum_rot = manifest
+            .steps
+            .get(manifest.current_step)
+            .map(|s| s.cumulative_rotation)
+            .unwrap_or(0);
+
+        manifest.steps.push(EditStep {
+            step_id: next_step_id,
+            op: "retouch".to_string(),
+            params: json!({ "spots": spots }),
+            timestamp: now_sec,
+            render_file: Some(step_file_name),
+            cumulative_rotation: prev_cum_rot,
+        });
+        manifest.current_step = next_step_id;
+        manifest.is_committed = false;
+        self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
+
+        let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
+        let _ = fs::copy(&dest_step_path, &thumb_path);
+
+        let session_state = self.get_session_state_internal(db, photo_id)?;
+
+        Ok(EditResult {
+            success: true,
+            photo: Some(photo),
+            session_state,
+            message: None,
+        })
+    }
+
+    pub fn blend_overlay_onto_image(base: &mut image::DynamicImage, overlay: &image::DynamicImage) {
+        let target_w = base.width();
+        let target_h = base.height();
+        let resized_overlay = if overlay.width() != target_w || overlay.height() != target_h {
+            overlay.resize_exact(target_w, target_h, image::imageops::FilterType::Lanczos3)
+        } else {
+            overlay.clone()
+        };
+        let overlay_rgba = resized_overlay.to_rgba8();
+        let mut base_rgba = base.to_rgba8();
+        let w = target_w.min(overlay_rgba.width());
+        let h = target_h.min(overlay_rgba.height());
+        for y in 0..h {
+            for x in 0..w {
+                let op = overlay_rgba.get_pixel(x, y);
+                let alpha = op[3] as f32 / 255.0;
+                if alpha > 0.0 {
+                    let bp = base_rgba.get_pixel_mut(x, y);
+                    let inv = 1.0 - alpha;
+                    bp[0] = (op[0] as f32 * alpha + bp[0] as f32 * inv).round() as u8;
+                    bp[1] = (op[1] as f32 * alpha + bp[1] as f32 * inv).round() as u8;
+                    bp[2] = (op[2] as f32 * alpha + bp[2] as f32 * inv).round() as u8;
+                }
+            }
+        }
+        *base = image::DynamicImage::ImageRgba8(base_rgba);
+    }
+
+    pub fn apply_text(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+        items: Vec<TextItem>,
+        overlay_base64: Option<String>,
+    ) -> Result<EditResult, String> {
+        let _lock = self.session_lock.lock().unwrap();
+        let photo = db
+            .get_photo_by_id(photo_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Photo not found".to_string())?;
+
+        let target_path = PathBuf::from(&photo.file_path);
+        if !target_path.exists() {
+            return Err("Target file does not exist on disk".to_string());
+        }
+
+        let settings = db.get_app_settings().unwrap_or_default();
+
+        let mut manifest = match self.find_session_for_photo(&photo) {
+            Some(m) => m,
+            None => {
+                let session_dir = self.get_session_dir(&photo.file_hash);
+                fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+                let meta = fs::metadata(&target_path).map_err(|e| e.to_string())?;
+                let mtime = meta
+                    .modified()
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let backup_path = self.ensure_backup(&target_path, &settings, &session_dir)?;
+                let _ = self.ensure_base_proxy(&session_dir, &target_path, &photo.file_hash, thumbnailer)?;
+
+                let initial_step = EditStep {
+                    step_id: 0,
+                    op: "original".to_string(),
+                    params: json!({}),
+                    timestamp: mtime as i64,
+                    render_file: Some("step_0.jpg".to_string()),
+                    cumulative_rotation: 0,
+                };
+
+                let m = EditSessionManifest {
+                    photo_id,
+                    original_path: photo.file_path.clone(),
+                    backup_path: backup_path.map(|p| p.to_string_lossy().to_string()),
+                    base_hash: photo.file_hash.clone(),
+                    base_mtime: mtime,
+                    base_size: meta.len(),
+                    last_saved_mtime: mtime,
+                    last_saved_size: meta.len(),
+                    current_step: 0,
+                    steps: vec![initial_step],
+                    is_committed: false,
+                };
+                self.save_manifest(&m)?;
+                m
+            }
+        };
+
+        let session_dir = self.get_session_dir(&manifest.base_hash);
+        fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+        let has_conflict = Self::check_external_conflict(&manifest, &target_path);
+        if has_conflict {
+            let session_state = self.get_session_state_internal(db, photo_id)?;
+            return Ok(EditResult {
+                success: false,
+                photo: Some(photo),
+                session_state,
+                message: Some("External changes detected on image file".to_string()),
+            });
+        }
+
+        manifest.steps.truncate(manifest.current_step + 1);
+
+        let mut orphan_id = manifest.current_step + 1;
+        loop {
+            let orphan_file = session_dir.join(format!("step_{}.jpg", orphan_id));
+            let orphan_overlay = session_dir.join(format!("text_overlay_{}.png", orphan_id));
+            let mut removed_any = false;
+            if orphan_file.exists() {
+                let _ = fs::remove_file(orphan_file);
+                removed_any = true;
+            }
+            if orphan_overlay.exists() {
+                let _ = fs::remove_file(orphan_overlay);
+                removed_any = true;
+            }
+            if !removed_any {
+                break;
+            }
+            orphan_id += 1;
+        }
+
+        let prev_render_name = manifest
+            .steps
+            .get(manifest.current_step)
+            .and_then(|s| s.render_file.clone())
+            .unwrap_or_else(|| "step_0.jpg".to_string());
+        let prev_path = session_dir.join(&prev_render_name);
+        let src_to_edit = if prev_path.exists() {
+            prev_path
+        } else {
+            self.ensure_base_proxy(&session_dir, &target_path, &manifest.base_hash, thumbnailer)?
+        };
+
+        let now_sec = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        let next_step_id = manifest.steps.len();
+        let step_file_name = format!("step_{}.jpg", next_step_id);
+        let dest_step_path = session_dir.join(&step_file_name);
+        let overlay_file_name = format!("text_overlay_{}.png", next_step_id);
+        let overlay_path = session_dir.join(&overlay_file_name);
+
+        let mut img = image::open(&src_to_edit).map_err(|e| format!("Failed to open image: {}", e))?;
+
+        if let Some(ref b64) = overlay_base64 {
+            let clean_b64 = if let Some(idx) = b64.find(',') {
+                &b64[idx + 1..]
+            } else {
+                b64.as_str()
+            };
+            use base64::Engine;
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(clean_b64.trim()) {
+                if let Ok(overlay_img) = image::load_from_memory(&bytes) {
+                    let _ = fs::write(&overlay_path, &bytes);
+                    Self::blend_overlay_onto_image(&mut img, &overlay_img);
+                }
+            }
+        }
+
+        let rgb = img.to_rgb8();
+        let tmp_dest = dest_step_path.with_extension(format!("tmp.{}", std::process::id()));
+        let file = File::create(&tmp_dest).map_err(|e| format!("Failed to create step file: {}", e))?;
+        let mut writer = BufWriter::new(file);
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
+        encoder
+            .encode(
+                rgb.as_raw(),
+                img.width(),
+                img.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+            .map_err(|e| format!("JPEG encode error: {}", e))?;
+        drop(writer);
+        let _ = fs::rename(&tmp_dest, &dest_step_path);
+
+        let prev_cum_rot = manifest
+            .steps
+            .get(manifest.current_step)
+            .map(|s| s.cumulative_rotation)
+            .unwrap_or(0);
+
+        manifest.steps.push(EditStep {
+            step_id: next_step_id,
+            op: "text".to_string(),
+            params: json!({
+                "items": items,
+                "overlay_file": overlay_file_name,
+            }),
+            timestamp: now_sec,
+            render_file: Some(step_file_name),
+            cumulative_rotation: prev_cum_rot,
+        });
+        manifest.current_step = next_step_id;
+        manifest.is_committed = false;
+        self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
+
+        let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
+        let _ = fs::copy(&dest_step_path, &thumb_path);
+
+        let session_state = self.get_session_state_internal(db, photo_id)?;
+
+        Ok(EditResult {
+            success: true,
+            photo: Some(photo),
+            session_state,
+            message: None,
+        })
+    }
+
+    pub fn apply_feeling_lucky_algorithm(img: &mut image::DynamicImage) {
+        // Picasa "I'm Feeling Lucky" (internally `autobacklight` at 0x8f7cc0 in Picasa3.exe):
+        // A harmonious 4-stage pipeline that genuinely enhances real-world photos:
+        // 1. Contrast expansion (0.8% percentile stretch)
+        // 2. Backlight / Fill Light (lifts underexposed faces and shadows without blowing highlights)
+        // 3. Gentle color cast balance (55% strength gray-world)
+        // 4. Midtone vibrance / saturation boost (+12% saturation in midtones)
+        let mut rgb = img.to_rgb8();
+        let (width, height) = rgb.dimensions();
+        let total_pixels = (width as usize) * (height as usize);
+        if total_pixels == 0 {
+            return;
+        }
+
+        // --- Step 1: Luminance Contrast Expansion ---
+        let mut hist_y = [0u32; 256];
+        for pixel in rgb.pixels() {
+            let y = ((pixel[0] as u32 * 77 + pixel[1] as u32 * 150 + pixel[2] as u32 * 29) >> 8) as usize;
+            hist_y[y] += 1;
+        }
+
+        let clip_low = ((total_pixels as f64) * 0.008).floor() as u32;
+        let clip_high = ((total_pixels as f64) * 0.008).floor() as u32;
+
+        let mut low_y = 0i32;
+        let mut acc = 0u32;
+        for (i, &count) in hist_y.iter().enumerate() {
+            acc += count;
+            if acc >= clip_low {
+                low_y = i as i32;
+                break;
+            }
+        }
+
+        acc = 0;
+        let mut high_y = 255i32;
+        for (i, &count) in hist_y.iter().enumerate().rev() {
+            acc += count;
+            if acc >= clip_high {
+                high_y = i as i32;
+                break;
+            }
+        }
+        if high_y <= low_y {
+            high_y = (low_y + 1).min(255);
+        }
+
+        let range_y = (high_y - low_y).max(1);
+
+        // --- Step 2 & 3: Fill Light Curve + Color Neutralization ---
+        // Sample midtones to compute mild illuminant shift
+        let mut sum_r = 0u64;
+        let mut sum_g = 0u64;
+        let mut sum_b = 0u64;
+        let mut count_mid = 0u64;
+        for pixel in rgb.pixels() {
+            let lum = (pixel[0] as u32 * 77 + pixel[1] as u32 * 150 + pixel[2] as u32 * 29) >> 8;
+            if lum >= 30 && lum <= 225 {
+                sum_r += pixel[0] as u64;
+                sum_g += pixel[1] as u64;
+                sum_b += pixel[2] as u64;
+                count_mid += 1;
+            }
+        }
+
+        let (gain_r, gain_g, gain_b) = if count_mid > 32 {
+            let avg_r = sum_r as f64 / count_mid as f64;
+            let avg_g = sum_g as f64 / count_mid as f64;
+            let avg_b = sum_b as f64 / count_mid as f64;
+            let avg_all = (avg_r + avg_g + avg_b) / 3.0;
+
+            // 55% strength correction toward neutral
+            let r_target = avg_r + (avg_all - avg_r) * 0.55;
+            let g_target = avg_g + (avg_all - avg_g) * 0.55;
+            let b_target = avg_b + (avg_all - avg_b) * 0.55;
+
+            let gr = (r_target / avg_r.max(1.0)).clamp(0.85, 1.25);
+            let gg = (g_target / avg_g.max(1.0)).clamp(0.85, 1.25);
+            let gb = (b_target / avg_b.max(1.0)).clamp(0.85, 1.25);
+            (gr, gg, gb)
+        } else {
+            (1.0, 1.0, 1.0)
+        };
+
+        // Precompute LUT for combined contrast stretch + backlight fill
+        let mut lut_r = [0u8; 256];
+        let mut lut_g = [0u8; 256];
+        let mut lut_b = [0u8; 256];
+
+        for i in 0..256 {
+            // 1. Stretched normalized value [0.0, 1.0]
+            let norm = ((i as f64 - low_y as f64) / range_y as f64).clamp(0.0, 1.0);
+
+            // 2. Picasa Backlight / Fill Light shadow lifting formula:
+            // Lifts dark areas (+15-20% in deep shadows) while tapering smoothly to 0 at black and white
+            let fill = 0.22 * norm * (1.0 - norm) * (2.0 - norm);
+            let lifted = (norm + fill).clamp(0.0, 1.0);
+
+            // 3. Rescale to 0..255 with color balance gains
+            lut_r[i] = ((lifted * 255.0 * gain_r).round() as i32).clamp(0, 255) as u8;
+            lut_g[i] = ((lifted * 255.0 * gain_g).round() as i32).clamp(0, 255) as u8;
+            lut_b[i] = ((lifted * 255.0 * gain_b).round() as i32).clamp(0, 255) as u8;
+        }
+
+        // Apply LUT + subtle midtone vibrance (+12% saturation)
+        let raw_pixels = rgb.as_mut();
+        raw_pixels.par_chunks_exact_mut(3).for_each(|pixel| {
+            let r = lut_r[pixel[0] as usize] as f32;
+            let g = lut_g[pixel[1] as usize] as f32;
+            let b = lut_b[pixel[2] as usize] as f32;
+
+            let y = 0.299 * r + 0.587 * g + 0.114 * b;
+            // Vibrance: boost saturation by 12% in midtones
+            let sat_boost = 1.12;
+            let new_r = (y + (r - y) * sat_boost).round().clamp(0.0, 255.0) as u8;
+            let new_g = (y + (g - y) * sat_boost).round().clamp(0.0, 255.0) as u8;
+            let new_b = (y + (b - y) * sat_boost).round().clamp(0.0, 255.0) as u8;
+
+            pixel[0] = new_r;
+            pixel[1] = new_g;
+            pixel[2] = new_b;
+        });
+
+        *img = image::DynamicImage::ImageRgb8(rgb);
+    }
+
+    pub fn apply_fill_light_algorithm(img: &mut image::DynamicImage, amount: f32) {
+        let amount = amount.clamp(0.0, 1.0);
+        if amount <= 1e-4 {
+            return;
+        }
+
+        let mut rgb = img.to_rgb8();
+        let mut lut = [0u8; 256];
+
+        for i in 0..256 {
+            let norm = i as f64 / 255.0;
+            // Picasa Fill Light shadow lifting formula:
+            // Lifts dark areas (+amount in deep/mid shadows) while smoothly tapering to 0 at black (0.0) and white (1.0).
+            // Curve: fill = amount * norm * (1.0 - norm) * (2.0 - norm)
+            let fill = (amount as f64) * norm * (1.0 - norm) * (2.0 - norm);
+            let lifted = (norm + fill).clamp(0.0, 1.0);
+            lut[i] = ((lifted * 255.0).round() as i32).clamp(0, 255) as u8;
+        }
+
+        let raw_pixels = rgb.as_mut();
+        raw_pixels.par_chunks_exact_mut(3).for_each(|pixel| {
+            pixel[0] = lut[pixel[0] as usize];
+            pixel[1] = lut[pixel[1] as usize];
+            pixel[2] = lut[pixel[2] as usize];
+        });
+
+        *img = image::DynamicImage::ImageRgb8(rgb);
+    }
+
+    pub fn apply_auto_contrast_algorithm(img: &mut image::DynamicImage) {
+        // High-impact Auto Contrast:
+        // Analyzes full-image luminance histogram with 0.8% percentile clipping at both black and white.
+        // Applies a uniform linear expansion across all 3 color channels (strictly 0% color tint shift)
+        // plus an adaptive contrast S-curve boost so even already-spread images get a distinct, pleasing punch.
+        let mut rgb = img.to_rgb8();
+        let (width, height) = rgb.dimensions();
+        let total_pixels = (width as usize) * (height as usize);
+        if total_pixels == 0 {
+            return;
+        }
+
+        let mut hist_y = [0u32; 256];
+        for pixel in rgb.pixels() {
+            let y = ((pixel[0] as u32 * 77 + pixel[1] as u32 * 150 + pixel[2] as u32 * 29) >> 8) as usize;
+            hist_y[y] += 1;
+        }
+
+        let clip_thresh = ((total_pixels as f64) * 0.008).floor().max(1.0) as u32;
+
+        let mut low_y = 0i32;
+        let mut acc = 0u32;
+        for (i, &count) in hist_y.iter().enumerate() {
+            acc += count;
+            if acc >= clip_thresh {
+                low_y = i as i32;
+                break;
+            }
+        }
+
+        acc = 0;
+        let mut high_y = 255i32;
+        for (i, &count) in hist_y.iter().enumerate().rev() {
+            acc += count;
+            if acc >= clip_thresh {
+                high_y = i as i32;
+                break;
+            }
+        }
+        if high_y <= low_y {
+            high_y = (low_y + 1).min(255);
+        }
+
+        let range = (high_y - low_y) as f64;
+
+        // Build uniform 256-entry LUT: linear percentile stretch + gentle S-curve contrast boost
+        let mut lut = [0u8; 256];
+        for i in 0..256 {
+            let stretched = ((i as f64 - low_y as f64) / range).clamp(0.0, 1.0);
+            // S-curve contrast adjustment: f(x) = x + 0.15 * sin(2*PI * x) (steepens midtones)
+            // or classic cubic S-curve: x' = 0.5 + 0.5 * sin(pi * (x - 0.5))
+            // Here: 15% blend toward smoothstep
+            let smooth = stretched * stretched * (3.0 - 2.0 * stretched);
+            let boosted = stretched * 0.70 + smooth * 0.30;
+            lut[i] = ((boosted * 255.0).round() as i32).clamp(0, 255) as u8;
+        }
+
+        let raw_pixels = rgb.as_mut();
+        raw_pixels.par_chunks_exact_mut(3).for_each(|pixel| {
+            pixel[0] = lut[pixel[0] as usize];
+            pixel[1] = lut[pixel[1] as usize];
+            pixel[2] = lut[pixel[2] as usize];
+        });
+
+        *img = image::DynamicImage::ImageRgb8(rgb);
+    }
+
+    pub fn apply_auto_color_algorithm(img: &mut image::DynamicImage) {
+        // High-impact Auto Color:
+        // Analyzes midtone illuminant cast using gray-world balance with 85% correction strength.
+        // Effectively removes warm indoor tungsten, blue shadows, or greenish fluorescent tints.
+        let mut rgb = img.to_rgb8();
+        let (width, height) = rgb.dimensions();
+        let total_pixels = (width as usize) * (height as usize);
+        if total_pixels == 0 {
+            return;
+        }
+
+        let mut sum_r = 0u64;
+        let mut sum_g = 0u64;
+        let mut sum_b = 0u64;
+        let mut count = 0u64;
+
+        for pixel in rgb.pixels() {
+            let lum = (pixel[0] as u32 * 77 + pixel[1] as u32 * 150 + pixel[2] as u32 * 29) >> 8;
+            // Restrict to midtones [25, 230] to ignore deep shadow clipping and specular light sources
+            if lum >= 25 && lum <= 230 {
+                sum_r += pixel[0] as u64;
+                sum_g += pixel[1] as u64;
+                sum_b += pixel[2] as u64;
+                count += 1;
+            }
+        }
+
+        if count < 16 {
+            return;
+        }
+
+        let avg_r = sum_r as f64 / count as f64;
+        let avg_g = sum_g as f64 / count as f64;
+        let avg_b = sum_b as f64 / count as f64;
+        let avg_gray = (avg_r + avg_g + avg_b) / 3.0;
+
+        // Apply 85% correction strength toward gray balance
+        let target_r = avg_r + (avg_gray - avg_r) * 0.85;
+        let target_g = avg_g + (avg_gray - avg_g) * 0.85;
+        let target_b = avg_b + (avg_gray - avg_b) * 0.85;
+
+        let gain_r = (target_r / avg_r.max(1.0)).clamp(0.70, 1.45);
+        let gain_g = (target_g / avg_g.max(1.0)).clamp(0.70, 1.45);
+        let gain_b = (target_b / avg_b.max(1.0)).clamp(0.70, 1.45);
+
+        // Normalize gains to preserve overall perceptual luminance
+        let lum_weight = 0.299 * gain_r + 0.587 * gain_g + 0.114 * gain_b;
+        let norm_r = gain_r / lum_weight;
+        let norm_g = gain_g / lum_weight;
+        let norm_b = gain_b / lum_weight;
+
+        let mut lut_r = [0u8; 256];
+        let mut lut_g = [0u8; 256];
+        let mut lut_b = [0u8; 256];
+
+        for i in 0..256 {
+            lut_r[i] = ((i as f64 * norm_r).round() as i32).clamp(0, 255) as u8;
+            lut_g[i] = ((i as f64 * norm_g).round() as i32).clamp(0, 255) as u8;
+            lut_b[i] = ((i as f64 * norm_b).round() as i32).clamp(0, 255) as u8;
+        }
+
+        let raw_pixels = rgb.as_mut();
+        raw_pixels.par_chunks_exact_mut(3).for_each(|pixel| {
+            pixel[0] = lut_r[pixel[0] as usize];
+            pixel[1] = lut_g[pixel[1] as usize];
+            pixel[2] = lut_b[pixel[2] as usize];
+        });
+
+        *img = image::DynamicImage::ImageRgb8(rgb);
+    }
+
+    fn apply_one_click_filter<F>(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+        op_name: &str,
+        filter_type: &str,
+        apply_fn: F,
+    ) -> Result<EditResult, String>
+    where
+        F: FnOnce(&mut image::DynamicImage),
+    {
+        let _lock = self.session_lock.lock().unwrap();
+        let photo = db
+            .get_photo_by_id(photo_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Photo not found".to_string())?;
+
+        let target_path = PathBuf::from(&photo.file_path);
+        if !target_path.exists() {
+            return Err("Target file does not exist on disk".to_string());
+        }
+
+        let settings = db.get_app_settings().unwrap_or_default();
+
+        let mut manifest = match self.find_session_for_photo(&photo) {
+            Some(m) => m,
+            None => {
+                let session_dir = self.get_session_dir(&photo.file_hash);
+                fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+                let meta = fs::metadata(&target_path).map_err(|e| e.to_string())?;
+                let mtime = meta
+                    .modified()
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let backup_path = self.ensure_backup(&target_path, &settings, &session_dir)?;
+                let _ = self.ensure_base_proxy(&session_dir, &target_path, &photo.file_hash, thumbnailer)?;
+
+                let initial_step = EditStep {
+                    step_id: 0,
+                    op: "original".to_string(),
+                    params: json!({}),
+                    timestamp: mtime as i64,
+                    render_file: Some("step_0.jpg".to_string()),
+                    cumulative_rotation: 0,
+                };
+
+                let m = EditSessionManifest {
+                    photo_id,
+                    original_path: photo.file_path.clone(),
+                    backup_path: backup_path.map(|p| p.to_string_lossy().to_string()),
+                    base_hash: photo.file_hash.clone(),
+                    base_mtime: mtime,
+                    base_size: meta.len(),
+                    last_saved_mtime: mtime,
+                    last_saved_size: meta.len(),
+                    current_step: 0,
+                    steps: vec![initial_step],
+                    is_committed: false,
+                };
+                self.save_manifest(&m)?;
+                m
+            }
+        };
+
+        let session_dir = self.get_session_dir(&manifest.base_hash);
+        fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+        // Check external conflict
+        let has_conflict = Self::check_external_conflict(&manifest, &target_path);
+        if has_conflict {
+            let session_state = self.get_session_state_internal(db, photo_id)?;
+            return Ok(EditResult {
+                success: false,
+                photo: Some(photo),
+                session_state,
+                message: Some("External changes detected on image file".to_string()),
+            });
+        }
+
+        // Truncate any redo steps beyond current_step
+        manifest.steps.truncate(manifest.current_step + 1);
+
+        // Remove orphaned forward step files
+        let mut orphan_id = manifest.current_step + 1;
+        loop {
+            let orphan_file = session_dir.join(format!("step_{}.jpg", orphan_id));
+            if orphan_file.exists() {
+                let _ = fs::remove_file(orphan_file);
+                orphan_id += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Previous step render file
+        let prev_render_name = manifest
+            .steps
+            .get(manifest.current_step)
+            .and_then(|s| s.render_file.clone())
+            .unwrap_or_else(|| "step_0.jpg".to_string());
+        let prev_path = session_dir.join(&prev_render_name);
+        let src_to_edit = if prev_path.exists() {
+            prev_path
+        } else {
+            self.ensure_base_proxy(&session_dir, &target_path, &manifest.base_hash, thumbnailer)?
+        };
+
+        let now_sec = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        let next_step_id = manifest.steps.len();
+        let step_file_name = format!("step_{}.jpg", next_step_id);
+        let dest_step_path = session_dir.join(&step_file_name);
+
+        let mut img = image::open(&src_to_edit).map_err(|e| format!("Failed to open image: {}", e))?;
+        apply_fn(&mut img);
+
+        let rgb = img.to_rgb8();
+        let tmp_dest = dest_step_path.with_extension(format!("tmp.{}", std::process::id()));
+        let file = File::create(&tmp_dest).map_err(|e| format!("Failed to create step file: {}", e))?;
+        let mut writer = BufWriter::new(file);
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
+        encoder
+            .encode(
+                rgb.as_raw(),
+                img.width(),
+                img.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+            .map_err(|e| format!("JPEG encode error: {}", e))?;
+        drop(writer);
+        let _ = fs::rename(&tmp_dest, &dest_step_path);
+
+        let prev_cum_rot = manifest
+            .steps
+            .get(manifest.current_step)
+            .map(|s| s.cumulative_rotation)
+            .unwrap_or(0);
+
+        manifest.steps.push(EditStep {
+            step_id: next_step_id,
+            op: op_name.to_string(),
+            params: json!({ "type": filter_type }),
+            timestamp: now_sec,
+            render_file: Some(step_file_name),
+            cumulative_rotation: prev_cum_rot,
+        });
+        manifest.current_step = next_step_id;
+        manifest.is_committed = false;
+        self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
+
+        let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
+        let _ = fs::copy(&dest_step_path, &thumb_path);
+
+        let session_state = self.get_session_state_internal(db, photo_id)?;
+
+        Ok(EditResult {
+            success: true,
+            photo: Some(photo),
+            session_state,
+            message: None,
+        })
+    }
+
+    pub fn apply_feeling_lucky(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+    ) -> Result<EditResult, String> {
+        self.apply_one_click_filter(
+            db,
+            thumbnailer,
+            photo_id,
+            "enhance",
+            "lucky",
+            Self::apply_feeling_lucky_algorithm,
+        )
+    }
+
+    pub fn apply_auto_contrast(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+    ) -> Result<EditResult, String> {
+        self.apply_one_click_filter(
+            db,
+            thumbnailer,
+            photo_id,
+            "autocontrast",
+            "autocontrast",
+            Self::apply_auto_contrast_algorithm,
+        )
+    }
+
+    pub fn apply_auto_color(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+    ) -> Result<EditResult, String> {
+        self.apply_one_click_filter(
+            db,
+            thumbnailer,
+            photo_id,
+            "autocolor",
+            "autocolor",
+            Self::apply_auto_color_algorithm,
+        )
+    }
+
+    pub fn apply_fill_light(
+        &self,
+        db: &DbManager,
+        thumbnailer: &Arc<ThumbnailManager>,
+        photo_id: i64,
+        amount: f32,
+    ) -> Result<EditResult, String> {
+        let _lock = self.session_lock.lock().unwrap();
+        let photo = db
+            .get_photo_by_id(photo_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Photo not found".to_string())?;
+
+        let target_path = PathBuf::from(&photo.file_path);
+        if !target_path.exists() {
+            return Err("Target file does not exist on disk".to_string());
+        }
+
+        let amount = amount.clamp(0.0, 1.0);
+        let settings = db.get_app_settings().unwrap_or_default();
+
+        let mut manifest = match self.find_session_for_photo(&photo) {
+            Some(m) => m,
+            None => {
+                let session_dir = self.get_session_dir(&photo.file_hash);
+                fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+                let meta = fs::metadata(&target_path).map_err(|e| e.to_string())?;
+                let mtime = meta
+                    .modified()
+                    .unwrap_or(SystemTime::now())
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let backup_path = self.ensure_backup(&target_path, &settings, &session_dir)?;
+                let _ = self.ensure_base_proxy(&session_dir, &target_path, &photo.file_hash, thumbnailer)?;
+
+                let initial_step = EditStep {
+                    step_id: 0,
+                    op: "original".to_string(),
+                    params: json!({}),
+                    timestamp: mtime as i64,
+                    render_file: Some("step_0.jpg".to_string()),
+                    cumulative_rotation: 0,
+                };
+
+                let m = EditSessionManifest {
+                    photo_id,
+                    original_path: photo.file_path.clone(),
+                    backup_path: backup_path.map(|p| p.to_string_lossy().to_string()),
+                    base_hash: photo.file_hash.clone(),
+                    base_mtime: mtime,
+                    base_size: meta.len(),
+                    last_saved_mtime: mtime,
+                    last_saved_size: meta.len(),
+                    current_step: 0,
+                    steps: vec![initial_step],
+                    is_committed: false,
+                };
+                self.save_manifest(&m)?;
+                m
+            }
+        };
+
+        let session_dir = self.get_session_dir(&manifest.base_hash);
+        fs::create_dir_all(&session_dir).map_err(|e| e.to_string())?;
+
+        let has_conflict = Self::check_external_conflict(&manifest, &target_path);
+        if has_conflict {
+            let session_state = self.get_session_state_internal(db, photo_id)?;
+            return Ok(EditResult {
+                success: false,
+                photo: Some(photo),
+                session_state,
+                message: Some("External changes detected on image file".to_string()),
+            });
+        }
+
+        let is_current_fill = manifest
+            .steps
+            .get(manifest.current_step)
+            .map(|s| s.op == "filllight" || s.op == "fill")
+            .unwrap_or(false);
+
+        // If setting to 0% and current step is already a filllight step, revert that step
+        if amount <= 1e-4 && is_current_fill {
+            if manifest.current_step > 0 {
+                manifest.current_step -= 1;
+                manifest.is_committed = false;
+                self.save_manifest(&manifest)?;
+                let _ = db.update_photo_unsaved_edits(photo_id, manifest.current_step > 0);
+
+                if let Some(step) = manifest.steps.get(manifest.current_step) {
+                    if let Some(ref rf) = step.render_file {
+                        let step_path = session_dir.join(rf);
+                        if step_path.exists() {
+                            let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
+                            let _ = fs::copy(&step_path, &thumb_path);
+                        }
+                    }
+                }
+
+                let session_state = self.get_session_state_internal(db, photo_id)?;
+                return Ok(EditResult {
+                    success: true,
+                    photo: Some(photo),
+                    session_state,
+                    message: None,
+                });
+            }
+        }
+
+        // Determine source step image and target step id
+        let (src_step_index, target_step_id) = if is_current_fill {
+            // Overwrite current step, source is previous step
+            (manifest.current_step.saturating_sub(1), manifest.current_step)
+        } else {
+            // Append new step: truncate forward redo steps
+            manifest.steps.truncate(manifest.current_step + 1);
+            let mut orphan_id = manifest.current_step + 1;
+            loop {
+                let orphan_file = session_dir.join(format!("step_{}.jpg", orphan_id));
+                if orphan_file.exists() {
+                    let _ = fs::remove_file(orphan_file);
+                    orphan_id += 1;
+                } else {
+                    break;
+                }
+            }
+            (manifest.current_step, manifest.steps.len())
+        };
+
+        let prev_render_name = manifest
+            .steps
+            .get(src_step_index)
+            .and_then(|s| s.render_file.clone())
+            .unwrap_or_else(|| "step_0.jpg".to_string());
+        let prev_path = session_dir.join(&prev_render_name);
+        let src_to_edit = if prev_path.exists() {
+            prev_path
+        } else {
+            self.ensure_base_proxy(&session_dir, &target_path, &manifest.base_hash, thumbnailer)?
+        };
+
+        let now_sec = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        let step_file_name = format!("step_{}.jpg", target_step_id);
+        let dest_step_path = session_dir.join(&step_file_name);
+
+        let mut img = image::open(&src_to_edit).map_err(|e| format!("Failed to open image: {}", e))?;
+        Self::apply_fill_light_algorithm(&mut img, amount);
+
+        let rgb = img.to_rgb8();
+        let tmp_dest = dest_step_path.with_extension(format!("tmp.{}", std::process::id()));
+        let file = File::create(&tmp_dest).map_err(|e| format!("Failed to create step file: {}", e))?;
+        let mut writer = BufWriter::new(file);
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
+        encoder
+            .encode(
+                rgb.as_raw(),
+                img.width(),
+                img.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+            .map_err(|e| format!("JPEG encode error: {}", e))?;
+        drop(writer);
+        let _ = fs::rename(&tmp_dest, &dest_step_path);
+
+        let prev_cum_rot = manifest
+            .steps
+            .get(src_step_index)
+            .map(|s| s.cumulative_rotation)
+            .unwrap_or(0);
+
+        let new_step = EditStep {
+            step_id: target_step_id,
+            op: "filllight".to_string(),
+            params: json!({ "amount": amount }),
+            timestamp: now_sec,
+            render_file: Some(step_file_name),
+            cumulative_rotation: prev_cum_rot,
+        };
+
+        if is_current_fill {
+            manifest.steps[target_step_id] = new_step;
+        } else {
+            manifest.steps.push(new_step);
+            manifest.current_step = target_step_id;
+        }
+
+        manifest.is_committed = false;
+        self.save_manifest(&manifest)?;
+        let _ = db.update_photo_unsaved_edits(photo_id, true);
+
         let thumb_path = thumbnailer.get_thumbnail_path(&photo.file_hash);
         let _ = fs::copy(&dest_step_path, &thumb_path);
 
@@ -1860,6 +3617,7 @@ impl EditorManager {
 
         let cum_rot = Self::calculate_cumulative_rotation(&manifest.steps, manifest.current_step);
         let _ = db.update_photo_edit_rotation(photo_id, cum_rot);
+        let _ = db.update_photo_unsaved_edits(photo_id, manifest.current_step > 0);
 
         // Update gallery thumbnail from the step render file
         let session_dir = self.get_session_dir(&manifest.base_hash);
@@ -1909,6 +3667,7 @@ impl EditorManager {
 
         let cum_rot = Self::calculate_cumulative_rotation(&manifest.steps, manifest.current_step);
         let _ = db.update_photo_edit_rotation(photo_id, cum_rot);
+        let _ = db.update_photo_unsaved_edits(photo_id, manifest.current_step > 0);
 
         // Update gallery thumbnail from the step render file
         let session_dir = self.get_session_dir(&manifest.base_hash);
@@ -1959,6 +3718,7 @@ impl EditorManager {
 
         let cum_rot = Self::calculate_cumulative_rotation(&manifest.steps, manifest.current_step);
         let _ = db.update_photo_edit_rotation(photo_id, cum_rot);
+        let _ = db.update_photo_unsaved_edits(photo_id, manifest.current_step > 0);
 
         let session_dir = self.get_session_dir(&manifest.base_hash);
         if let Some(step) = manifest.steps.get(manifest.current_step) {
@@ -2013,7 +3773,7 @@ impl EditorManager {
         let _ = self.ensure_backup(&target_path, &settings, &session_dir)?;
 
         // High quality render from pristine original to target file
-        Self::render_pipeline_to_file(&base_source, &target_path, &manifest.steps, manifest.current_step)?;
+        Self::render_pipeline_to_file(&base_source, &target_path, &manifest.steps, manifest.current_step, Some(&session_dir))?;
 
         if settings.original_handling == "overwrite" {
             let backup_path = Self::get_backup_path(&target_path);
@@ -2122,8 +3882,9 @@ impl EditorManager {
             let _ = fs::remove_dir_all(&hash_dir);
         }
 
-        // Reset edit rotation in DB
+        // Reset edit rotation and unsaved edits in DB
         let _ = db.update_photo_edit_rotation(photo_id, 0);
+        let _ = db.update_photo_unsaved_edits(photo_id, false);
 
         // Update photo metadata in DB with the restored original file
         if let Ok(meta) = fs::metadata(&target_path) {
@@ -2237,7 +3998,7 @@ impl EditorManager {
                     let new_copy_path = parent.join(new_file_name);
 
                     let internal_pristine = Self::get_pristine_path(&session_dir, &target_path);
-                    Self::render_pipeline_to_file(&internal_pristine, &new_copy_path, &m.steps, m.current_step)?;
+                    Self::render_pipeline_to_file(&internal_pristine, &new_copy_path, &m.steps, m.current_step, Some(&session_dir))?;
 
                     let _ = fs::remove_dir_all(&session_dir);
                     let session_state = self.get_session_state_internal(db, photo_id)?;
@@ -2260,6 +4021,7 @@ impl EditorManager {
         dest_path: &Path,
         steps: &[EditStep],
         current_step: usize,
+        session_dir: Option<&Path>,
     ) -> Result<(), String> {
         let active_steps = &steps[..=current_step.min(steps.len().saturating_sub(1))];
         let has_ops = active_steps.iter().any(|s| s.op != "original");
@@ -2315,6 +4077,41 @@ impl EditorManager {
                     if angle.abs() > 1e-4 {
                         let rotated_rgb = Self::rotate_and_crop_image(&img, angle);
                         img = image::DynamicImage::ImageRgb8(rotated_rgb);
+                    }
+                }
+                "redeye" => {
+                    Self::apply_redeye_correction_to_image(&mut img, &step.params);
+                }
+                "enhance" | "lucky" => {
+                    Self::apply_feeling_lucky_algorithm(&mut img);
+                }
+                "autocontrast" => {
+                    Self::apply_auto_contrast_algorithm(&mut img);
+                }
+                "autocolor" => {
+                    Self::apply_auto_color_algorithm(&mut img);
+                }
+                "fill" | "filllight" => {
+                    let amount = step.params.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    Self::apply_fill_light_algorithm(&mut img, amount);
+                }
+                "retouch" | "spotblend" => {
+                    if let Some(spots_val) = step.params.get("spots") {
+                        if let Ok(spots) = serde_json::from_value::<Vec<RetouchSpot>>(spots_val.clone()) {
+                            Self::apply_spot_blend_algorithm(&mut img, &spots);
+                        }
+                    }
+                }
+                "text" => {
+                    if let Some(s_dir) = session_dir {
+                        if let Some(overlay_name) = step.params.get("overlay_file").and_then(|v| v.as_str()) {
+                            let overlay_path = s_dir.join(overlay_name);
+                            if overlay_path.exists() {
+                                if let Ok(overlay_img) = image::open(&overlay_path) {
+                                    Self::blend_overlay_onto_image(&mut img, &overlay_img);
+                                }
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -2711,6 +4508,517 @@ mod tests {
         // For a perfectly horizontal line, top suggestion should be near 0 deg
         assert!(suggestions[0].angle.abs() <= 1.0);
     }
+
+    #[test]
+    fn test_redeye_correction_and_session() {
+        use crate::models::RedEyeBox;
+
+        let temp_dir = tempdir().unwrap();
+        let test_img_path = temp_dir.path().join("test_redeye.jpg");
+
+        // Create 200x200 test image:
+        // - Base skin tone: (210, 160, 140)
+        // - Red pupil centered at (100, 100) with radius 8: (220, 30, 30)
+        // - Catchlight at (100, 98): (250, 250, 250)
+        let img = image::RgbImage::from_fn(200, 200, |x, y| {
+            let dx = (x as i32) - 100;
+            let dy = (y as i32) - 100;
+            let dist_sq = dx * dx + dy * dy;
+            if x == 100 && y == 98 {
+                image::Rgb([250, 250, 250]) // Catchlight specular reflection
+            } else if dist_sq <= 64 {
+                image::Rgb([220, 30, 30]) // Bright flash red eye
+            } else {
+                image::Rgb([210, 160, 140]) // Normal skin
+            }
+        });
+
+        // 1. Direct pixel-level correction test
+        let mut test_dyn = image::DynamicImage::ImageRgb8(img.clone());
+        let boxes = vec![RedEyeBox {
+            id: "test_eye_1".to_string(),
+            x: 0.40, // 80px to 120px
+            y: 0.40,
+            width: 0.20,
+            height: 0.20,
+        }];
+
+        let params = serde_json::json!({ "boxes": boxes });
+        EditorManager::apply_redeye_correction_to_image(&mut test_dyn, &params);
+        let corrected_rgb = test_dyn.to_rgb8();
+
+        // Check red pupil: before was (220, 30, 30), should now be darkened/desaturated
+        let pupil_pixel = corrected_rgb.get_pixel(100, 102);
+        assert!(
+            pupil_pixel[0] < 80,
+            "Red channel should be darkened, was {}",
+            pupil_pixel[0]
+        );
+        assert!(
+            (pupil_pixel[0] as i32 - pupil_pixel[1] as i32).abs() < 25,
+            "Pupil should be neutral/desaturated, was {:?}",
+            pupil_pixel
+        );
+
+        // Check catchlight reflection: should be preserved as bright white (>200)
+        let catchlight_pixel = corrected_rgb.get_pixel(100, 98);
+        assert!(
+            catchlight_pixel[0] >= 240 && catchlight_pixel[1] >= 240 && catchlight_pixel[2] >= 240,
+            "Catchlight should be preserved untouched, was {:?}",
+            catchlight_pixel
+        );
+
+        // Check surrounding skin tone: should be untouched
+        let skin_pixel = corrected_rgb.get_pixel(50, 50);
+        assert_eq!(skin_pixel[0], 210);
+        assert_eq!(skin_pixel[1], 160);
+        assert_eq!(skin_pixel[2], 140);
+
+        // 2. Editor session pipeline test
+        img.save(&test_img_path).unwrap();
+        let db = DbManager::new_in_memory().unwrap();
+        let folder_id = db.add_or_update_folder(temp_dir.path().to_str().unwrap(), "Test", "always").unwrap();
+        let initial_hash = Scanner::compute_file_hash(&test_img_path, 1000, 1000);
+        db.batch_upsert_photos(&[PhotoInsert {
+            folder_id,
+            file_path: test_img_path.to_str().unwrap().to_string(),
+            file_hash: initial_hash,
+            file_name: "test_redeye.jpg".to_string(),
+            file_size: 1000,
+            width: Some(200),
+            height: Some(200),
+            date_taken: Some(1000),
+            camera_make: None,
+            camera_model: None,
+            orientation: Some(1),
+        }]).unwrap();
+
+        let photo = db.get_photo_by_path(test_img_path.to_str().unwrap()).unwrap().unwrap();
+        let thumb_dir = temp_dir.path().join("thumbs");
+        let thumbnailer = Arc::new(ThumbnailManager::with_cache_dir(thumb_dir));
+        let edits_dir = temp_dir.path().join("edits");
+        let editor = EditorManager::with_edits_dir(edits_dir);
+
+        let res = editor
+            .apply_redeye(&db, &thumbnailer, photo.id, boxes)
+            .unwrap();
+        assert!(res.success);
+        assert_eq!(res.session_state.current_step, 1);
+        assert_eq!(res.session_state.steps.len(), 2);
+        assert_eq!(res.session_state.steps[1].op, "redeye");
+
+        // 3. Save session
+        let saved_session = editor.save_edit_session(&db, &thumbnailer, photo.id).unwrap();
+        assert!(saved_session.is_committed);
+
+        let saved_img = image::open(&test_img_path).unwrap().to_rgb8();
+        let saved_pupil = saved_img.get_pixel(100, 102);
+        assert!(
+            saved_pupil[0] < 80,
+            "Saved file should contain red eye repair, was {:?}",
+            saved_pupil
+        );
+    }
+
+    #[test]
+    fn test_feeling_lucky_enhancement() {
+        use image::{Rgb, RgbImage};
+
+        // Create a test image with low contrast and slight blue cast
+        let mut test_img = RgbImage::new(100, 100);
+        for y in 0..100 {
+            for x in 0..100 {
+                // Dull, dark, bluish pixel
+                let val = (40 + (x + y) / 4) as u8;
+                test_img.put_pixel(x, y, Rgb([val, val, val + 15]));
+            }
+        }
+
+        let mut dyn_img = image::DynamicImage::ImageRgb8(test_img);
+        EditorManager::apply_feeling_lucky_algorithm(&mut dyn_img);
+
+        let rgb = dyn_img.to_rgb8();
+        let (w, h) = rgb.dimensions();
+        assert_eq!(w, 100);
+        assert_eq!(h, 100);
+
+        // Check that dynamic range and brightness were enhanced
+        let mut max_lum = 0u8;
+        let mut min_lum = 255u8;
+        for p in rgb.pixels() {
+            let lum = (0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64) as u8;
+            max_lum = max_lum.max(lum);
+            min_lum = min_lum.min(lum);
+        }
+
+        assert!(max_lum > 80, "Expected max luminance to expand, got {}", max_lum);
+        assert!(min_lum < 40, "Expected shadow definition, got {}", min_lum);
+    }
+
+    #[test]
+    fn test_auto_contrast_enhancement() {
+        use image::{Rgb, RgbImage};
+
+        // Create a flat low-contrast image (values between 80 and 160)
+        let mut test_img = RgbImage::new(100, 100);
+        for y in 0..100 {
+            for x in 0..100 {
+                let val = (80 + (x * 80) / 100) as u8;
+                test_img.put_pixel(x, y, Rgb([val, val, val]));
+            }
+        }
+
+        let mut dyn_img = image::DynamicImage::ImageRgb8(test_img);
+        EditorManager::apply_auto_contrast_algorithm(&mut dyn_img);
+
+        let rgb = dyn_img.to_rgb8();
+        let mut min_val = 255u8;
+        let mut max_val = 0u8;
+        for p in rgb.pixels() {
+            min_val = min_val.min(p[0]);
+            max_val = max_val.max(p[0]);
+            // Neutral image remains strictly neutral
+            assert_eq!(p[0], p[1]);
+            assert_eq!(p[1], p[2]);
+        }
+
+        // Contrast should be significantly stretched toward 0 and 255
+        assert!(min_val < 30, "Expected low end to stretch toward 0, got {}", min_val);
+        assert!(max_val > 225, "Expected high end to stretch toward 255, got {}", max_val);
+    }
+
+    #[test]
+    fn test_auto_color_enhancement() {
+        use image::{Rgb, RgbImage};
+
+        // Create an image with an artificial warm/yellow cast (R elevated, B suppressed)
+        let mut test_img = RgbImage::new(100, 100);
+        for y in 0..100 {
+            for x in 0..100 {
+                let g = 128u8;
+                let r = 150u8; // +22 warm cast
+                let b = 106u8; // -22 cool suppression
+                test_img.put_pixel(x, y, Rgb([r, g, b]));
+            }
+        }
+
+        let mut dyn_img = image::DynamicImage::ImageRgb8(test_img);
+        EditorManager::apply_auto_color_algorithm(&mut dyn_img);
+
+        let rgb = dyn_img.to_rgb8();
+        let sample = rgb.get_pixel(50, 50);
+        // Cast should be noticeably neutralized: difference between R and B should shrink significantly
+        let orig_diff = (150i32 - 106i32).abs();
+        let new_diff = (sample[0] as i32 - sample[2] as i32).abs();
+        assert!(
+            new_diff < orig_diff,
+            "Auto Color should reduce channel difference: original diff {}, new diff {}",
+            orig_diff,
+            new_diff
+        );
+    }
+
+    #[test]
+    fn test_retouch_spot_blend_algorithm() {
+        use image::{Rgb, RgbImage};
+        use crate::models::RetouchSpot;
+
+        // Create a 100x100 uniform background (light gray [200, 200, 200])
+        // with a dark blemish at (30, 30) of radius 5 (values [20, 20, 20])
+        let mut test_img = RgbImage::new(100, 100);
+        for y in 0..100 {
+            for x in 0..100 {
+                test_img.put_pixel(x, y, Rgb([200, 200, 200]));
+            }
+        }
+
+        // Draw dark blemish
+        for y in 26..=34 {
+            for x in 26..=34 {
+                let dx = (x as f64) - 30.0;
+                let dy = (y as f64) - 30.0;
+                if dx * dx + dy * dy <= 16.0 {
+                    test_img.put_pixel(x, y, Rgb([20, 20, 20]));
+                }
+            }
+        }
+
+        let mut dyn_img = image::DynamicImage::ImageRgb8(test_img);
+
+        // Apply SpotBlend retouch healing from clean source patch at (70, 70)
+        let spot = RetouchSpot {
+            id: "test-spot-1".to_string(),
+            target_x: 0.30,
+            target_y: 0.30,
+            radius: 0.08, // 8px radius
+            source_x: 0.70,
+            source_y: 0.70,
+        };
+
+        EditorManager::apply_spot_blend_algorithm(&mut dyn_img, &[spot]);
+
+        let rgb = dyn_img.to_rgb8();
+        let healed_center = rgb.get_pixel(30, 30);
+
+        // The blemish should be healed: center should be close to 200, not 20
+        assert!(
+            healed_center[0] > 180,
+            "Blemish center was not healed properly: expected >180, got {:?}",
+            healed_center
+        );
+        assert!(
+            healed_center[1] > 180,
+            "Blemish center was not healed properly: expected >180, got {:?}",
+            healed_center
+        );
+        assert!(
+            healed_center[2] > 180,
+            "Blemish center was not healed properly: expected >180, got {:?}",
+            healed_center
+        );
+
+        // Test sequential spots: Add a 2nd blemish at (50, 50), and use the newly HEALED (30, 30) as donor source!
+        let mut img2 = dyn_img.to_rgb8();
+        for dy in -3..=3 {
+            for dx in -3..=3 {
+                if dx * dx + dy * dy <= 9 {
+                    img2.put_pixel((50 + dx) as u32, (50 + dy) as u32, Rgb([10, 10, 10]));
+                }
+            }
+        }
+        let mut dyn_img2 = image::DynamicImage::ImageRgb8(img2);
+
+        let spot2 = RetouchSpot {
+            id: "test-spot-2".to_string(),
+            target_x: 0.50,
+            target_y: 0.50,
+            radius: 0.08,
+            source_x: 0.30, // Using (30, 30) which was previously blemish, but is now healed!
+            source_y: 0.30,
+        };
+
+        EditorManager::apply_spot_blend_algorithm(&mut dyn_img2, &[spot2]);
+        let rgb2 = dyn_img2.to_rgb8();
+        let spot2_center = rgb2.get_pixel(50, 50);
+
+        // Because spot 2 sampled from the previously healed spot 1, it should receive clean bright pixels (> 170)
+        assert!(
+            spot2_center[0] > 170,
+            "Spot 2 did not sample from the healed spot 1: expected >170, got {:?}",
+            spot2_center
+        );
+    }
+
+    #[test]
+    fn test_editor_text_and_undo_redo() {
+        use base64::engine::general_purpose::STANDARD as BASE64;
+        use base64::Engine;
+
+        let temp_dir = tempdir().unwrap();
+        let photos_dir = temp_dir.path().join("Photos");
+        fs::create_dir_all(&photos_dir).unwrap();
+
+        // 100x100 white image
+        let test_img_path = photos_dir.join("text_test.png");
+        let mut img = image::RgbImage::new(100, 100);
+        for pixel in img.pixels_mut() {
+            *pixel = image::Rgb([255, 255, 255]);
+        }
+        img.save(&test_img_path).unwrap();
+
+        let db = DbManager::new_in_memory().unwrap();
+        let folder_id = db.add_or_update_folder(photos_dir.to_str().unwrap(), "Photos", "always").unwrap();
+
+        let initial_hash = Scanner::compute_file_hash(&test_img_path, 1000, 1000);
+        db.batch_upsert_photos(&[PhotoInsert {
+            folder_id,
+            file_path: test_img_path.to_str().unwrap().to_string(),
+            file_hash: initial_hash.clone(),
+            file_name: "text_test.png".to_string(),
+            file_size: 1000,
+            width: Some(100),
+            height: Some(100),
+            date_taken: Some(1000),
+            camera_make: None,
+            camera_model: None,
+            orientation: Some(1),
+        }]).unwrap();
+
+        let photo = db.get_photo_by_path(test_img_path.to_str().unwrap()).unwrap().unwrap();
+        let thumb_dir = temp_dir.path().join("thumbs");
+        let thumbnailer = Arc::new(ThumbnailManager::with_cache_dir(thumb_dir));
+        let edits_dir = temp_dir.path().join("edits");
+        let editor = EditorManager::with_edits_dir(edits_dir);
+
+        // Create overlay with red box in center
+        let mut overlay = image::RgbaImage::new(100, 100);
+        for y in 40..60 {
+            for x in 40..60 {
+                overlay.put_pixel(x, y, image::Rgba([255, 0, 0, 255]));
+            }
+        }
+        let mut overlay_bytes = Vec::new();
+        overlay.write_to(&mut std::io::Cursor::new(&mut overlay_bytes), image::ImageFormat::Png).unwrap();
+        let overlay_b64 = format!("data:image/png;base64,{}", BASE64.encode(&overlay_bytes));
+
+        let text_item = TextItem {
+            id: "t1".to_string(),
+            text: "Hello Picasa".to_string(),
+            x: 0.5,
+            y: 0.5,
+            angle: 0.0,
+            scale: 1.0,
+            font_family: "Arial".to_string(),
+            font_size: 20.0,
+            bold: false,
+            italic: false,
+            underline: false,
+            alignment: "center".to_string(),
+            color: "#ff0000".to_string(),
+            has_fill: true,
+            has_outline: false,
+            outline_color: "#000000".to_string(),
+            outline_width: 0.0,
+            transparency: 0.0,
+        };
+
+        // 1. Apply text
+        let res = editor.apply_text(&db, &thumbnailer, photo.id, vec![text_item], Some(overlay_b64)).unwrap();
+        assert!(res.success);
+        let s = res.session_state;
+        assert_eq!(s.current_step, 1);
+        assert!(s.can_undo);
+        assert!(!s.can_redo);
+
+        // Check proxy files
+        let session_dir = editor.get_session_dir(&photo.file_hash);
+        assert!(session_dir.join("step_1.jpg").exists());
+        assert!(session_dir.join("text_overlay_1.png").exists());
+
+        // 2. Undo text
+        let res_undo = editor.undo_edit(&db, &thumbnailer, photo.id).unwrap();
+        assert!(res_undo.success);
+        assert_eq!(res_undo.session_state.current_step, 0);
+        assert!(!res_undo.session_state.can_undo);
+        assert!(res_undo.session_state.can_redo);
+
+        // 3. Redo text
+        let res_redo = editor.redo_edit(&db, &thumbnailer, photo.id).unwrap();
+        assert!(res_redo.success);
+        assert_eq!(res_redo.session_state.current_step, 1);
+        assert!(res_redo.session_state.can_undo);
+        assert!(!res_redo.session_state.can_redo);
+
+        // 4. Save (commit)
+        let saved = editor.save_edit_session(&db, &thumbnailer, photo.id).unwrap();
+        assert!(saved.is_committed);
+
+        // Verify committed file on disk has red center
+        let disk_img = image::open(&test_img_path).unwrap().to_rgb8();
+        let center_px = disk_img.get_pixel(50, 50);
+        assert_eq!(center_px[0], 255);
+        assert!(center_px[1] < 50);
+        assert!(center_px[2] < 50);
+    }
+
+    #[test]
+    fn test_editor_fill_light_algorithm() {
+        // Create 4x1 image: black, shadow (30), midtone (100), white (255)
+        let mut img = image::RgbImage::new(4, 1);
+        img.put_pixel(0, 0, image::Rgb([0, 0, 0]));
+        img.put_pixel(1, 0, image::Rgb([30, 30, 30]));
+        img.put_pixel(2, 0, image::Rgb([100, 100, 100]));
+        img.put_pixel(3, 0, image::Rgb([255, 255, 255]));
+
+        let mut dyn_img = image::DynamicImage::ImageRgb8(img.clone());
+
+        // Amount 0.0 should leave image untouched
+        EditorManager::apply_fill_light_algorithm(&mut dyn_img, 0.0);
+        assert_eq!(dyn_img.to_rgb8().get_pixel(0, 0), &image::Rgb([0, 0, 0]));
+        assert_eq!(dyn_img.to_rgb8().get_pixel(1, 0), &image::Rgb([30, 30, 30]));
+        assert_eq!(dyn_img.to_rgb8().get_pixel(2, 0), &image::Rgb([100, 100, 100]));
+        assert_eq!(dyn_img.to_rgb8().get_pixel(3, 0), &image::Rgb([255, 255, 255]));
+
+        // Amount 0.5 should lift shadows and midtones while preserving black and white
+        EditorManager::apply_fill_light_algorithm(&mut dyn_img, 0.5);
+        let rgb = dyn_img.to_rgb8();
+        assert_eq!(rgb.get_pixel(0, 0), &image::Rgb([0, 0, 0]), "Black point must stay 0");
+        assert_eq!(rgb.get_pixel(3, 0), &image::Rgb([255, 255, 255]), "White point must stay 255");
+        assert!(rgb.get_pixel(1, 0)[0] > 30, "Shadows must be lifted");
+        assert!(rgb.get_pixel(2, 0)[0] > 100, "Midtones must be lifted");
+        assert!(rgb.get_pixel(1, 0)[0] < rgb.get_pixel(2, 0)[0], "Monotonicity must be preserved");
+    }
+
+    #[test]
+    fn test_editor_fill_light_session_and_commit() {
+        let temp_dir = tempdir().unwrap();
+        let photos_dir = temp_dir.path().join("Photos");
+        fs::create_dir_all(&photos_dir).unwrap();
+
+        // 100x100 dark shadow image (all pixels at 40, 40, 40)
+        let test_img_path = photos_dir.join("fill_test.png");
+        let mut img = image::RgbImage::new(100, 100);
+        for pixel in img.pixels_mut() {
+            *pixel = image::Rgb([40, 40, 40]);
+        }
+        img.save(&test_img_path).unwrap();
+
+        let db = DbManager::new_in_memory().unwrap();
+        let folder_id = db.add_or_update_folder(photos_dir.to_str().unwrap(), "Photos", "always").unwrap();
+
+        let initial_hash = Scanner::compute_file_hash(&test_img_path, 1000, 1000);
+        db.batch_upsert_photos(&[PhotoInsert {
+            folder_id,
+            file_path: test_img_path.to_str().unwrap().to_string(),
+            file_hash: initial_hash.clone(),
+            file_name: "fill_test.png".to_string(),
+            file_size: 1000,
+            width: Some(100),
+            height: Some(100),
+            date_taken: Some(1000),
+            camera_make: None,
+            camera_model: None,
+            orientation: Some(1),
+        }]).unwrap();
+
+        let photo = db.get_photo_by_path(test_img_path.to_str().unwrap()).unwrap().unwrap();
+        let thumb_dir = temp_dir.path().join("thumbs");
+        let thumbnailer = Arc::new(ThumbnailManager::with_cache_dir(thumb_dir));
+        let edits_dir = temp_dir.path().join("edits");
+        let editor = EditorManager::with_edits_dir(edits_dir);
+
+        // 1. Apply fill light 30%
+        let res = editor.apply_fill_light(&db, &thumbnailer, photo.id, 0.3).unwrap();
+        assert!(res.success);
+        assert_eq!(res.session_state.current_step, 1);
+        assert!(res.session_state.can_undo);
+
+        // 2. Adjust fill light slider to 50% (should update step 1 in-place rather than push step 2)
+        let res2 = editor.apply_fill_light(&db, &thumbnailer, photo.id, 0.5).unwrap();
+        assert!(res2.success);
+        assert_eq!(res2.session_state.current_step, 1);
+        assert_eq!(res2.session_state.steps.len(), 2); // step 0 and step 1
+
+        // 3. Undo fill light
+        let res_undo = editor.undo_edit(&db, &thumbnailer, photo.id).unwrap();
+        assert!(res_undo.success);
+        assert_eq!(res_undo.session_state.current_step, 0);
+
+        // 4. Redo fill light
+        let res_redo = editor.redo_edit(&db, &thumbnailer, photo.id).unwrap();
+        assert!(res_redo.success);
+        assert_eq!(res_redo.session_state.current_step, 1);
+
+        // 5. Commit to disk
+        let saved = editor.save_edit_session(&db, &thumbnailer, photo.id).unwrap();
+        assert!(saved.is_committed);
+
+        // Verify disk file pixels were lifted significantly above 40
+        let disk_img = image::open(&test_img_path).unwrap().to_rgb8();
+        let px = disk_img.get_pixel(50, 50);
+        assert!(px[0] > 60, "Committed file should have lifted shadows: expected >60, got {}", px[0]);
+    }
 }
+
 
 

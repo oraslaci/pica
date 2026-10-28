@@ -13,9 +13,10 @@
     CheckSquare,
     Loader2,
   } from '@lucide/svelte';
-  import type { FolderWithPhotos, Photo } from '../types';
-  import { getThumbnailUrl, setThumbnailPriority, toggleFavorite } from '../api';
+  import type { FolderWithPhotos, Photo, FaceBox } from '../types';
+  import { getThumbnailUrl, setThumbnailPriority, toggleFavorite, getFacesForPhoto } from '../api';
   import PhotoThumbnail from './PhotoThumbnail.svelte';
+  import { showFaceDebugOverlay } from '../debugStore';
 
   let {
     folderGroups = [],
@@ -37,6 +38,22 @@
 
   let collapsedFolders = $state<Record<number, boolean>>({});
   let photoRotations = $state<Record<number, number>>({});
+  let photoFacesCache = $state<Record<number, FaceBox[]>>({});
+  let requestedFaceIds = new Set<number>();
+
+  async function loadFacesForVisiblePhotos(photosToLoad: Photo[]) {
+    if (!$showFaceDebugOverlay) return;
+    for (const p of photosToLoad) {
+      if (!requestedFaceIds.has(p.id)) {
+        requestedFaceIds.add(p.id);
+        getFacesForPhoto(p.id).then((faces) => {
+          if (faces && faces.length > 0) {
+            photoFacesCache = { ...photoFacesCache, [p.id]: faces };
+          }
+        }).catch(() => {});
+      }
+    }
+  }
 
   // Container viewport dimensions
   let scrollContainer = $state<HTMLElement | null>(null);
@@ -185,6 +202,12 @@
       }
     }
 
+    // When face debug overlay is enabled, fetch faces for rendered photos
+    if ($showFaceDebugOverlay) {
+      const allRendered = Object.values(slices).flatMap((s) => s.photos);
+      loadFacesForVisiblePhotos(allRendered);
+    }
+
     return slices;
   });
 
@@ -266,7 +289,7 @@
   let pendingScrollTop = 0;
   let trackElement: HTMLElement | null = null;
   let thumbElement: HTMLElement | null = null;
-  let badgeElement: HTMLElement | null = null;
+  let badgeElement = $state<HTMLElement | null>(null);
   let gridUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   let lastGridUpdate = 0;
 
@@ -754,30 +777,66 @@
                   >
                     <!-- Thumbnail Image with rotation container -->
                     <div
-                      class="w-full h-full overflow-hidden flex items-center justify-center transition-transform duration-200"
+                      class="w-full h-full overflow-hidden flex items-center justify-center transition-transform duration-200 relative"
                       style="transform: rotate({photoRotations[photo.id] || 0}deg);"
                     >
                       <PhotoThumbnail
                         {photo}
                         class="w-full h-full object-cover group-hover:scale-103 transition-transform duration-150"
                       />
+
+                      <!-- Debug Face Detection & Person Labels Overlay -->
+                      {#if $showFaceDebugOverlay && photoFacesCache[photo.id] && photoFacesCache[photo.id].length > 0}
+                        <div class="absolute inset-0 pointer-events-none z-15">
+                          {#each photoFacesCache[photo.id] as face (face.id)}
+                            <div
+                              class="absolute border border-purple-400 bg-purple-500/20 shadow-[0_0_0_1px_rgba(0,0,0,0.5)] rounded-xs"
+                              style="
+                                left: {face.box_x * 100}%;
+                                top: {face.box_y * 100}%;
+                                width: {face.box_w * 100}%;
+                                height: {face.box_h * 100}%;
+                              "
+                            >
+                              <div
+                                class="absolute -top-4 left-1/2 -translate-x-1/2 px-1 py-0.2 rounded-xs bg-black/85 text-[9px] font-bold text-purple-200 whitespace-nowrap shadow border border-purple-400/40"
+                              >
+                                {face.person_name || 'Person'} ({Math.round(face.confidence * 100)}%)
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
                     </div>
 
-                    <!-- Top-Left Select Checkbox Button (Picasa style) -->
-                    <button
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        onPhotoClick(photo, true);
-                      }}
-                      class="absolute top-2 left-2 p-1 rounded backdrop-blur-xs transition-opacity z-10 {
-                        isSelected
-                          ? 'bg-blue-600 text-white opacity-100'
-                          : 'bg-black/50 text-white/80 opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white'
-                      }"
-                      title={isSelected ? 'Deselect photo' : 'Select photo'}
-                    >
-                      <Check class="w-3.5 h-3.5" />
-                    </button>
+                    <!-- Top-Left Status Indicator & Select Checkbox Button (Picasa style) -->
+                    <div class="absolute top-2 left-2 z-10 flex items-center gap-1.5 pointer-events-none">
+                      <button
+                        type="button"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          onPhotoClick(photo, true);
+                        }}
+                        class="p-1 rounded backdrop-blur-xs transition-opacity pointer-events-auto {
+                          isSelected
+                            ? 'bg-blue-600 text-white opacity-100'
+                            : 'bg-black/50 text-white/80 opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white'
+                        }"
+                        title={isSelected ? 'Deselect photo' : 'Select photo'}
+                      >
+                        <Check class="w-3.5 h-3.5" />
+                      </button>
+
+                      {#if photo.has_unsaved_edits}
+                        <div
+                          class="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/90 text-white text-[9px] font-bold tracking-tight shadow-md backdrop-blur-xs border border-amber-400/50 animate-in fade-in zoom-in-95 duration-150"
+                          title="Unsaved edits present. Changes are preserved in non-destructive session."
+                        >
+                          <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                          <span>Edited</span>
+                        </div>
+                      {/if}
+                    </div>
 
                     <!-- Top Right Favorite Star (Picasa style) -->
                     <button
@@ -792,23 +851,25 @@
                       <Star class="w-3.5 h-3.5 {photo.is_favorite ? 'fill-amber-400' : ''}" />
                     </button>
 
-                    <!-- Bottom-Left Rotate CCW Button on hover (Picasa classic) -->
-                    <button
-                      onclick={(e) => handleRotateCard(e, photo, -90)}
-                      class="absolute bottom-2 left-2 p-1 rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                      title="Rotate Counter-Clockwise (-90°)"
-                    >
-                      <RotateCcw class="w-3.5 h-3.5" />
-                    </button>
+                    {#if import.meta.env.DEV}
+                      <!-- Bottom-Left Rotate CCW Button on hover (Picasa classic) -->
+                      <button
+                        onclick={(e) => handleRotateCard(e, photo, -90)}
+                        class="absolute bottom-2 left-2 p-1 rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        title="Rotate Counter-Clockwise (-90°)"
+                      >
+                        <RotateCcw class="w-3.5 h-3.5" />
+                      </button>
 
-                    <!-- Bottom-Right Rotate CW Button on hover (Picasa classic) -->
-                    <button
-                      onclick={(e) => handleRotateCard(e, photo, 90)}
-                      class="absolute bottom-2 right-2 p-1 rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                      title="Rotate Clockwise (+90°)"
-                    >
-                      <RotateCw class="w-3.5 h-3.5" />
-                    </button>
+                      <!-- Bottom-Right Rotate CW Button on hover (Picasa classic) -->
+                      <button
+                        onclick={(e) => handleRotateCard(e, photo, 90)}
+                        class="absolute bottom-2 right-2 p-1 rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/80 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        title="Rotate Clockwise (+90°)"
+                      >
+                        <RotateCw class="w-3.5 h-3.5" />
+                      </button>
+                    {/if}
 
                     <!-- Bottom Filename Gradient Overlay on hover -->
                     <div
@@ -844,6 +905,7 @@
     <div
       bind:this={thumbElement}
       role="scrollbar"
+      aria-controls="library-grid-container"
       aria-label="Photo library scrollbar"
       aria-valuenow={Math.round(scrollTop)}
       aria-valuemin={0}

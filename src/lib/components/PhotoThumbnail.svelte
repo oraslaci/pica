@@ -10,10 +10,10 @@
 
   let { photo, class: className = '' }: { photo: Photo; class?: string } = $props();
 
-  let isLoaded = $state(loadedHashes.has(photo.file_hash));
+  let isLoaded = $state(false);
   let retryCount = $state(0);
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let lastHash = $state(photo.file_hash);
+  let lastHash = $state('');
 
   let currentSrc = $derived(
     retryCount === 0

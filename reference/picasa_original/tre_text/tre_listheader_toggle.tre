@@ -1,7 +1,0 @@
-#includeonce macros.tre
-Property button_state_decrect_n globalbuttons/b3_decrect_n
-Property button_state_decrect_p globalbuttons/b3_decrect_p
-Property button_state_decrect_h globalbuttons/b3_decrect_h
-m_buttontypecolor
-#cd -label
-#m_buttonfontC

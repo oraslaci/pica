@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod editor;
+pub mod faces;
 pub mod models;
 pub mod scanner;
 pub mod server;
@@ -47,6 +48,8 @@ pub fn run_server_only() {
         num_workers,
     ));
     let is_scanning = Arc::new(AtomicBool::new(false));
+    let faces = Arc::new(faces::FaceManager::new(db.clone()));
+    faces.start_background_service(is_scanning.clone());
 
     let state = AppState {
         db,
@@ -54,6 +57,7 @@ pub fn run_server_only() {
         scheduler,
         is_scanning,
         editor,
+        faces,
     };
 
     // Auto-scan initial folders on startup
@@ -62,6 +66,7 @@ pub fn run_server_only() {
         let thumb_clone = state.thumbnailer.clone();
         let scheduler_clone = state.scheduler.clone();
         let is_scanning_clone = state.is_scanning.clone();
+        let faces_clone = state.faces.clone();
         std::thread::spawn(move || {
             is_scanning_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             let scanner = scanner::Scanner::with_scheduler(db_clone, thumb_clone, scheduler_clone);
@@ -74,6 +79,7 @@ pub fn run_server_only() {
             }
             is_scanning_clone.store(false, std::sync::atomic::Ordering::SeqCst);
             println!("[Pica Scanner] Initial scan completed.");
+            faces_clone.wake();
         });
     }
 
@@ -103,6 +109,8 @@ pub fn run() {
         num_workers,
     ));
     let is_scanning = Arc::new(AtomicBool::new(false));
+    let faces = Arc::new(faces::FaceManager::new(db.clone()));
+    faces.start_background_service(is_scanning.clone());
 
     let state = AppState {
         db,
@@ -110,12 +118,15 @@ pub fn run() {
         scheduler: scheduler.clone(),
         is_scanning,
         editor,
+        faces: faces.clone(),
     };
 
     // Start local embedded HTTP server on 127.0.0.1:3456
     server::start_http_server(state.clone(), 3456);
 
     let thumb_manager_proto = thumbnailer.clone();
+    let faces_proto = faces.clone();
+    let faces_setup = faces.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -137,6 +148,20 @@ pub fn run() {
                             .status(StatusCode::OK)
                             .header(header::CONTENT_TYPE, "image/jpeg")
                             .header(header::CACHE_CONTROL, "no-cache")
+                            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+                            .body(bytes)
+                            .unwrap();
+                    }
+                }
+            } else if path_part.starts_with("/face/") {
+                let face_id_str = path_part.trim_start_matches("/face/");
+                if let Ok(face_id) = face_id_str.parse::<i64>() {
+                    if let Ok(Some(bytes)) = faces_proto.get_face_chip(face_id) {
+                        return Response::builder()
+                            .status(StatusCode::OK)
+                            .header(header::CONTENT_TYPE, "image/jpeg")
+                            .header(header::CACHE_CONTROL, "public, max-age=86400")
+                            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                             .body(bytes)
                             .unwrap();
                     }
@@ -162,6 +187,7 @@ pub fn run() {
                                     .status(StatusCode::OK)
                                     .header(header::CONTENT_TYPE, mime)
                                     .header(header::CACHE_CONTROL, "no-cache")
+                                    .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                                     .body(bytes)
                                     .unwrap();
                             }
@@ -172,6 +198,7 @@ pub fn run() {
 
             Response::builder()
                 .status(StatusCode::NOT_FOUND)
+                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                 .body(Vec::new())
                 .unwrap()
         })
@@ -182,8 +209,6 @@ pub fn run() {
             commands::remove_watch_folder,
             commands::trigger_scan,
             commands::get_folders_with_photos,
-            commands::get_photos_for_folder,
-            commands::get_all_photos,
             commands::toggle_favorite,
             commands::get_library_stats,
             commands::set_thumbnail_priority,
@@ -201,11 +226,39 @@ pub fn run() {
             commands::apply_crop,
             commands::get_straighten_suggestions,
             commands::apply_straighten,
+            commands::detect_red_eyes,
+            commands::apply_redeye_step,
+            commands::apply_retouch_step,
+            commands::apply_text_step,
+            commands::apply_feeling_lucky,
+            commands::apply_auto_contrast,
+            commands::apply_auto_color,
+            commands::apply_fill_light,
+            commands::get_face_settings,
+            commands::update_face_settings,
+            commands::update_folder_face_detect,
+            commands::get_face_collections,
+            commands::get_faces_for_photo,
+            commands::get_photos_for_person,
+            commands::update_person_name,
+            commands::trigger_face_scan,
+            commands::get_face_timing_stats,
+            commands::set_face_timing_recording,
+            commands::get_face_timing_records,
+            commands::clear_face_timing_records,
+            commands::export_face_timing_csv,
+            commands::recluster_faces,
+            commands::realign_face_embeddings,
+            commands::get_photo_metadata,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
             scheduler.add_ready_callback(move |hash| {
                 let _ = handle.emit("thumbnail-ready", hash);
+            });
+            let face_handle = app.handle().clone();
+            faces_setup.set_progress_callback(move |prog| {
+                let _ = face_handle.emit("face-scan-progress", prog);
             });
             Ok(())
         })

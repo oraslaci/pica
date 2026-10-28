@@ -1,6 +1,0 @@
-#includeonce macros.tre
-Property button_state_decrect_n globalbuttons/left_segment_n
-Property button_state_decrect_p globalbuttons/left_segment_p
-Property button_state_decrect_h globalbuttons/left_segment_h
-Property button_buttcon
-m_buttontypecolor

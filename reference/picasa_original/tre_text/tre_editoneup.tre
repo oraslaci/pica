@@ -1,8 +1,0 @@
-#includeonce macros.tre
-# properties for a tab
-Property button_state_n drawertab/n
-Property button_state_p drawertab/p
-Property button_state_h drawertab/h
-Property button_buttcon 1
-Property normalcursor 1
-m_buttontypecolor

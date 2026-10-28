@@ -1,0 +1,9 @@
+[package]
+name = "picasa_face"
+version = "0.1.0"
+edition = "2021"
+license-file = "../LICENSE"
+description = "Clean Rust implementation of Picasa's two-phase Sow-Grow face clustering engine."
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }

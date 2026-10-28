@@ -5,12 +5,22 @@ import type {
   CropSuggestion,
   EditResult,
   EditSessionState,
+  FaceBox,
+  FaceCollection,
+  FaceSettings,
   Folder,
   FolderWithPhotos,
   LibraryStats,
   Photo,
+  PhotoMetadata,
   ScanProgress,
+  FaceScanProgress,
+  FaceScanTimingRecord,
+  FaceTimingStats,
+  RedEyeBox,
+  RetouchSpot,
   StraightenSuggestion,
+  TextItem,
 } from './types';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -257,6 +267,15 @@ export function onScanComplete(callback: () => void) {
   }
   return listen('scan-complete', () => {
     callback();
+  });
+}
+
+export function onFaceScanProgress(callback: (progress: FaceScanProgress) => void) {
+  if (!isTauri) {
+    return () => {};
+  }
+  return listen<FaceScanProgress>('face-scan-progress', (event) => {
+    callback(event.payload);
   });
 }
 
@@ -635,5 +654,443 @@ export async function getStraightenSuggestions(
   return await res.json();
 }
 
+export async function detectRedEyes(photoId: number): Promise<RedEyeBox[]> {
+  if (isTauri) {
+    try {
+      return await invoke<RedEyeBox[]>('detect_red_eyes', { photoId });
+    } catch (err) {
+      console.warn('Tauri detect_red_eyes failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/detect_red_eyes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to detect red eyes');
+  return await res.json();
+}
 
+export async function applyRedEyeStep(
+  photoId: number,
+  boxes: RedEyeBox[]
+): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_redeye_step', { photoId, boxes });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_redeye_step failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/redeye`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, boxes }),
+  });
+  if (!res.ok) throw new Error('Failed to apply red eye repair');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyRetouchStep(
+  photoId: number,
+  spots: RetouchSpot[]
+): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_retouch_step', { photoId, spots });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_retouch_step failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/retouch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, spots }),
+  });
+  if (!res.ok) throw new Error('Failed to apply retouch step');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyTextStep(
+  photoId: number,
+  items: TextItem[],
+  overlayBase64?: string
+): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_text_step', {
+        photoId,
+        items,
+        overlayBase64: overlayBase64 || null,
+      });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_text_step failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      photo_id: photoId,
+      items,
+      overlay_base64: overlayBase64 || null,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to apply text step');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyFeelingLucky(photoId: number): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_feeling_lucky', { photoId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_feeling_lucky failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/lucky`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to apply I\'m Feeling Lucky');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyAutoContrast(photoId: number): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_auto_contrast', { photoId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_auto_contrast failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/autocontrast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to apply Auto Contrast');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyAutoColor(photoId: number): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_auto_color', { photoId });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_auto_color failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/autocolor`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId }),
+  });
+  if (!res.ok) throw new Error('Failed to apply Auto Color');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+export async function applyFillLight(photoId: number, amount: number): Promise<EditResult> {
+  let result: EditResult;
+  if (isTauri) {
+    try {
+      result = await invoke<EditResult>('apply_fill_light', { photoId, amount });
+      if (result.session_state) sessionCache.set(photoId, result.session_state);
+      return result;
+    } catch (err) {
+      console.warn('Tauri apply_fill_light failed, falling back:', err);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/edit/filllight`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_id: photoId, amount }),
+  });
+  if (!res.ok) throw new Error('Failed to apply Fill Light');
+  result = await res.json();
+  if (result.session_state) sessionCache.set(photoId, result.session_state);
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Face Detection & Face Collections (People) API
+// ---------------------------------------------------------------------------
+
+export function getFaceCropUrl(faceId: number): string {
+  if (isTauri) {
+    return `pica://face/${faceId}`;
+  }
+  return `${SERVER_URL}/api/faces/${faceId}/crop`;
+}
+
+export async function getFaceSettings(): Promise<FaceSettings> {
+  if (isTauri) {
+    try {
+      return await invoke<FaceSettings>('get_face_settings');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/faces/settings`);
+  if (!res.ok) throw new Error('Failed to get face settings');
+  return await res.json();
+}
+
+export async function updateFaceSettings(enabled: boolean): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('update_face_settings', { enabled });
+    } catch {
+      // Fallback
+    }
+  }
+  await fetch(`${SERVER_URL}/api/faces/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export async function updateFolderFaceDetect(folderId: number, enabled: boolean): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('update_folder_face_detect', { folderId, enabled });
+    } catch {
+      // Fallback
+    }
+  }
+  await fetch(`${SERVER_URL}/api/faces/folder/detect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder_id: folderId, enabled }),
+  });
+}
+
+export async function getFaceCollections(): Promise<FaceCollection[]> {
+  if (isTauri) {
+    try {
+      return await invoke<FaceCollection[]>('get_face_collections');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/faces/collections`);
+  if (!res.ok) throw new Error('Failed to get face collections');
+  return await res.json();
+}
+
+export async function getFacesForPhoto(photoId: number): Promise<FaceBox[]> {
+  if (isTauri) {
+    try {
+      return await invoke<FaceBox[]>('get_faces_for_photo', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/faces/photo?id=${photoId}`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+export async function getPhotosForPerson(personId: number): Promise<Photo[]> {
+  if (isTauri) {
+    try {
+      return await invoke<Photo[]>('get_photos_for_person', { personId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/faces/person?id=${personId}`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+export async function updatePersonName(personId: number, name: string): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('update_person_name', { personId, name });
+    } catch {
+      // Fallback
+    }
+  }
+  await fetch(`${SERVER_URL}/api/faces/person/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ person_id: personId, name }),
+  });
+}
+
+export async function triggerFaceScan(): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('trigger_face_scan');
+    } catch {
+      // Fallback
+    }
+  }
+  await fetch(`${SERVER_URL}/api/faces/scan`, {
+    method: 'POST',
+  });
+}
+
+export async function reclusterFaces(threshold?: number): Promise<{ people_count: number }> {
+  if (isTauri) {
+    try {
+      const count = await invoke<number>('recluster_faces', { threshold });
+      return { people_count: count };
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/faces/recluster`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ threshold }),
+  });
+  if (!res.ok) throw new Error('Failed to recluster faces');
+  return await res.json();
+}
+
+export async function realignFaceEmbeddings(): Promise<{ updated_faces: number; people_count: number }> {
+  if (isTauri) {
+    try {
+      return await invoke<{ updated_faces: number; people_count: number }>('realign_face_embeddings');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/faces/realign`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to realign face embeddings');
+  return await res.json();
+}
+
+export async function getFaceTimingStats(): Promise<FaceTimingStats> {
+  if (isTauri) {
+    try {
+      return await invoke<FaceTimingStats>('get_face_timing_stats');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/debug/face-timings`);
+  if (!res.ok) {
+    return {
+      is_recording: false,
+      record_count: 0,
+      avg_decode_ms: 0,
+      avg_detect_ms: 0,
+      avg_embed_ms: 0,
+      avg_total_ms: 0,
+      min_total_ms: 0,
+      max_total_ms: 0,
+      photos_per_second: 0,
+      log_file_path: '',
+    };
+  }
+  const data = await res.json();
+  return data.stats;
+}
+
+export async function setFaceTimingRecording(enabled: boolean): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke<void>('set_face_timing_recording', { enabled });
+    } catch {
+      // Fallback to HTTP
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/debug/face-timings/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    throw new Error(`Server returned ${res.status}: ${res.statusText}`);
+  }
+}
+
+export async function getFaceTimingRecords(limit?: number): Promise<FaceScanTimingRecord[]> {
+  if (isTauri) {
+    try {
+      return await invoke<FaceScanTimingRecord[]>('get_face_timing_records', { limit });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/debug/face-timings${limit ? `?limit=${limit}` : ''}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.records || [];
+}
+
+export async function clearFaceTimingRecords(): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke<void>('clear_face_timing_records');
+    } catch {
+      // Fallback
+    }
+  }
+  await fetch(`${SERVER_URL}/api/debug/face-timings/clear`, {
+    method: 'POST',
+  });
+}
+
+export async function exportFaceTimingCsv(): Promise<string> {
+  if (isTauri) {
+    try {
+      return await invoke<string>('export_face_timing_csv');
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/debug/face-timings/export.csv`);
+  return res.ok ? await res.text() : '';
+}
+
+export async function getPhotoMetadata(photoId: number): Promise<PhotoMetadata> {
+  if (isTauri) {
+    try {
+      return await invoke<PhotoMetadata>('get_photo_metadata', { photoId });
+    } catch {
+      // Fallback
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/photo/metadata?id=${photoId}`);
+  if (!res.ok) throw new Error('Failed to load photo metadata');
+  return await res.json();
+}
 

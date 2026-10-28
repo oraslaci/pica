@@ -1,16 +1,22 @@
 <script lang="ts">
-  import type { FolderWithPhotos, LibraryStats } from '../types';
+  import { Users, User, Edit2, Check } from '@lucide/svelte';
+  import { getFaceCropUrl } from '../api';
+  import type { FaceCollection, FolderWithPhotos, LibraryStats } from '../types';
 
   interface Props {
     folderGroups: FolderWithPhotos[];
     stats: LibraryStats;
     onlyFavorites: boolean;
     activeFolderId: number | null;
+    activePersonId?: number | null;
+    faceCollections?: FaceCollection[];
     isCollapsed: boolean;
     onToggleCollapse: () => void;
     onSelectFolder: (folderId: number | null) => void;
+    onSelectPerson?: (personId: number | null) => void;
     onToggleFavorites: (val: boolean) => void;
     onOpenFolderManager: () => void;
+    onRenamePerson?: (personId: number, newName: string) => void;
   }
 
   let {
@@ -18,15 +24,45 @@
     stats,
     onlyFavorites,
     activeFolderId,
+    activePersonId = null,
+    faceCollections = [],
     isCollapsed,
     onToggleCollapse,
     onSelectFolder,
+    onSelectPerson = () => {},
     onToggleFavorites,
     onOpenFolderManager,
+    onRenamePerson = () => {},
   }: Props = $props();
 
   let isAlbumsExpanded = $state(true);
   let isFoldersExpanded = $state(true);
+  let isPeopleExpanded = $state(true);
+
+  let editingPersonId = $state<number | null>(null);
+  let editingPersonName = $state('');
+
+  function startRename(person: FaceCollection, e: MouseEvent) {
+    e.stopPropagation();
+    editingPersonId = person.id;
+    editingPersonName = person.name;
+  }
+
+  function saveRename(personId: number) {
+    if (editingPersonName.trim()) {
+      onRenamePerson(personId, editingPersonName.trim());
+    }
+    editingPersonId = null;
+  }
+
+  const sortedPeople = $derived(
+    [...faceCollections].sort((a, b) => {
+      if (b.photo_count !== a.photo_count) {
+        return b.photo_count - a.photo_count;
+      }
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    })
+  );
 </script>
 
 <aside
@@ -113,6 +149,18 @@
             </svg>
           </button>
         {/each}
+
+        {#if sortedPeople.length > 0}
+          <div class="w-6 h-px my-1" style="background-color: var(--border-subtle);"></div>
+          <button
+            onclick={() => { onSelectPerson(sortedPeople[0].id); onSelectFolder(null); }}
+            title="People ({sortedPeople.length})"
+            class="w-8 h-8 rounded flex items-center justify-center transition-colors {activePersonId !== null ? 'bg-purple-600 text-white' : 'hover:bg-black/10 dark:hover:bg-white/10'}"
+            style={activePersonId !== null ? '' : 'color: var(--text-main);'}
+          >
+            <Users class="w-4 h-4 text-purple-400" />
+          </button>
+        {/if}
       </div>
     {:else}
       <!-- Expanded Tree View -->
@@ -215,6 +263,101 @@
                 </span>
               </button>
             {/each}
+          </div>
+        {/if}
+      </div>
+
+      <!-- SECTION 3: PEOPLE (FACE COLLECTIONS) - Most Popular on Top -->
+      <div>
+        <div class="px-3 py-1 flex items-center justify-between">
+          <button
+            onclick={() => (isPeopleExpanded = !isPeopleExpanded)}
+            class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors hover:text-purple-400"
+            style="color: var(--text-dim);"
+          >
+            <Users class="w-3.5 h-3.5 text-purple-400" />
+            <span>People ({sortedPeople.length})</span>
+            <svg class="w-3 h-3 transition-transform {isPeopleExpanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {#if isPeopleExpanded}
+          <div class="mt-1 space-y-0.5 px-2">
+            {#if sortedPeople.length === 0}
+              <div class="px-3 py-2 text-[11px] italic" style="color: var(--text-muted);">
+                No faces detected yet
+              </div>
+            {:else}
+              {#each sortedPeople as person}
+                <div
+                  role="button"
+                  tabindex="0"
+                  onclick={() => {
+                    onSelectFolder(null);
+                    onSelectPerson(person.id);
+                  }}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') {
+                      onSelectFolder(null);
+                      onSelectPerson(person.id);
+                    }
+                  }}
+                  class="w-full px-2 py-1.5 rounded-md flex items-center justify-between transition-colors cursor-pointer group {activePersonId === person.id ? 'bg-purple-600 text-white font-medium shadow-sm' : 'hover:bg-black/5 dark:hover:bg-white/5'}"
+                  style={activePersonId === person.id ? '' : 'color: var(--text-main);'}
+                >
+                  <div class="flex items-center gap-2 truncate flex-1 min-w-0">
+                    <!-- Circular Face Crop Avatar -->
+                    {#if person.cover_face_id}
+                      <img
+                        src={getFaceCropUrl(person.cover_face_id)}
+                        alt={person.name}
+                        class="w-5 h-5 rounded-full object-cover shrink-0 border border-purple-400/40"
+                        onerror={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    {:else}
+                      <div class="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 text-[10px] font-bold">
+                        {person.name.slice(0, 1).toUpperCase()}
+                      </div>
+                    {/if}
+
+                    {#if editingPersonId === person.id}
+                      <!-- svelte-ignore a11y_autofocus -->
+                      <input
+                        type="text"
+                        bind:value={editingPersonName}
+                        onclick={(e) => e.stopPropagation()}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter') saveRename(person.id);
+                          if (e.key === 'Escape') editingPersonId = null;
+                        }}
+                        onblur={() => saveRename(person.id)}
+                        class="px-1.5 py-0.5 text-xs bg-black/40 border border-purple-400 rounded text-white focus:outline-hidden w-full"
+                        autofocus
+                      />
+                    {:else}
+                      <span class="truncate flex-1 text-xs" title={person.name}>
+                        {person.name}
+                      </span>
+                      <button
+                        onclick={(e) => startRename(person, e)}
+                        title="Rename Person"
+                        class="opacity-0 group-hover:opacity-100 p-0.5 hover:text-purple-300 transition-opacity"
+                      >
+                        <Edit2 class="w-3 h-3" />
+                      </button>
+                    {/if}
+                  </div>
+
+                  <span class="text-xs px-1.5 py-0.2 rounded-full shrink-0 ml-1.5 {activePersonId === person.id ? 'bg-purple-700 text-purple-100' : 'bg-black/10 dark:bg-white/10'}" style={activePersonId === person.id ? '' : 'color: var(--text-muted);'}>
+                    {person.photo_count}
+                  </span>
+                </div>
+              {/each}
+            {/if}
           </div>
         {/if}
       </div>

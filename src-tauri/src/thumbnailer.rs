@@ -14,7 +14,7 @@ use rayon::prelude::*;
 
 use crate::db::DbManager;
 
-pub const DEFAULT_THUMBNAIL_SIZE: u32 = 384;
+pub const DEFAULT_THUMBNAIL_SIZE: u32 = 256;
 
 fn compute_thumb_dimensions(w: u32, h: u32, target_size: u32) -> (u32, u32) {
     if w == 0 || h == 0 {
@@ -406,24 +406,6 @@ impl ThumbnailScheduler {
         cvar.notify_all();
     }
 
-    /// Set high-priority photos (backwards-compatible wrapper).
-    pub fn set_high_priority_hashes(&self, hashes: Vec<String>, replace: bool) {
-        let (lock, cvar) = &*self.state;
-        let mut q = lock.lock().unwrap();
-        q.epoch = q.epoch.wrapping_add(1);
-        if replace {
-            q.screen_hashes = hashes;
-            q.near_hashes.clear();
-        } else {
-            for h in hashes {
-                if !q.screen_hashes.contains(&h) {
-                    q.screen_hashes.push(h);
-                }
-            }
-        }
-        cvar.notify_all();
-    }
-
     /// Register a callback to be called when any thumbnail finishes generation.
     pub fn add_ready_callback<F>(&self, cb: F)
     where
@@ -468,12 +450,6 @@ impl ThumbnailScheduler {
         q.screen_hashes.clear();
         q.near_hashes.clear();
         cvar.notify_all();
-    }
-
-    pub fn get_queue_lengths(&self) -> (usize, usize) {
-        let (lock, _) = &*self.state;
-        let q = lock.lock().unwrap();
-        (q.active_hashes.len(), q.pending_jobs.len())
     }
 }
 
@@ -523,31 +499,15 @@ mod tests {
     }
 
     #[test]
-    fn test_webcam_thumbnail() {
-        let path = PathBuf::from("/home/pathfindr/Pictures/Webcam/2023-11-08-160205.jpg");
-        if path.exists() {
-            let temp_dir = tempfile::tempdir().expect("create temp dir");
-            let thumb_manager = ThumbnailManager::with_cache_dir(temp_dir.path().to_path_buf());
-            let thumb = thumb_manager.generate_thumbnail(&path, "testwebcam", 384);
-            println!("Webcam thumb result: {:?}", thumb);
-            assert!(thumb.is_ok());
-        }
-    }
+    fn test_exif_fast_path_graceful_fallback_without_exif() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let test_img_path = temp_dir.path().join("plain_no_exif.jpg");
+        let img = image::DynamicImage::new_rgb8(320, 240);
+        img.save(&test_img_path).expect("save plain jpeg");
 
-    #[test]
-    fn test_exif_fast_path() {
-        let path = PathBuf::from("/home/pathfindr/Pictures/oraslaci/PXL_20220705_123809863.jpg");
-        if path.exists() {
-            let start = std::time::Instant::now();
-            let thumb_bytes = ThumbnailManager::try_extract_exif_thumbnail(&path);
-            let elapsed = start.elapsed();
-            println!("EXIF extraction took: {:?}", elapsed);
-            assert!(thumb_bytes.is_some(), "Should extract embedded EXIF thumbnail");
-            let bytes = thumb_bytes.unwrap();
-            assert!(bytes.len() > 1000);
-            assert_eq!(&bytes[0..3], &[0xFF, 0xD8, 0xFF]);
-            println!("Extracted {} bytes in {:?}", bytes.len(), elapsed);
-        }
+        // Plain synthetic JPEG has no embedded EXIF IFD1 thumbnail
+        let thumb_bytes = ThumbnailManager::try_extract_exif_thumbnail(&test_img_path);
+        assert!(thumb_bytes.is_none());
     }
 
     #[test]

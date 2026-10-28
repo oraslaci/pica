@@ -1,47 +1,93 @@
-# Svelte + TS + Vite
+# 📸 Pica
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+> **TL;DR:** Pica is a blazing-fast, 100% offline desktop photo manager and non-destructive editor inspired by the legendary **Google Picasa 3.9** — rebuilt from scratch with **Rust (Tauri v2)** and **Svelte 5**.
 
-## Recommended IDE Setup
+> [!WARNING]
+> **Disclaimer:** This is 100% vibecoded, with good intentions using gemini. Take it with a grain of salt and don't hold me responsible, if this turns into skynet. You're also welcome to contribute. The intention is to recreate a really awesome piece of software, that let you manage your own stuff without a paid subscription. The goal is to make it just as slick and fast as the original.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+---
 
-## Need an official Svelte framework?
+## ⚡ Why Does This Exist?
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+Remember when photo apps just opened **instantly**, let you scroll through **20,000 photos at 120 FPS** without lagging, fixed red-eye and crooked horizons in two clicks, grouped your friends' faces *without* uploading your life to a paid cloud subscription, and never held your folders hostage?
 
-## Technical considerations
+That was **Google Picasa**. Google retired it in 2016. We missed it, so we're building **Pica**.
 
-**Why use this over SvelteKit?**
+- 🏠 **100% Local & Offline:** Zero cloud accounts, zero telemetry, zero subscriptions. Your photos stay in your folders where you put them.
+- 🚀 **Stupidly Fast:** Rust backend + SIMD thumbnailer + virtualized Svelte 5 grid + custom localhost streaming server = butter-smooth scrolling.
+- 🛡️ **Non-Destructive Editing:** Crop, straighten, fix lighting, heal blemishes, or slap text on a photo. Undo/redo works even after you close and reopen the app. Originals are safely backed up in `.pica_originals/`.
+- 🧠 **Offline Face Grouping:** Detects and groups faces locally on your CPU using embedded neural nets (YuNet + MobileFaceNet) and Picasa's classic "Sow & Grow" clustering algorithm.
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+---
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+## ✅ What Works Right Now vs. 🚧 What's Cooking
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+> **Note:** Unfinished/experimental features are **hidden in Release builds** so normal humans get a clean, working app, and **visible in Dev mode** (`npm run tauri dev`) so contributors can hack on them.
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+| Feature | Release Build | Dev Mode | What It Does |
+| :--- | :---: | :---: | :--- |
+| **Folder Watcher & Fast Scanner** | ✅ | ✅ | Scans your photo folders with multi-threaded Rust + EXIF extraction |
+| **120 FPS Virtualized Grid & Scrubber** | ✅ | ✅ | Grouped by folder/date with Picasa's fast-scroll timeline scrubber |
+| **Basic Fixes Suite (Tab 1)** | ✅ | ✅ | **Crop** (with smart suggestions), **Straighten** (auto-horizon), **Redeye**, **I'm Feeling Lucky**, **Auto Contrast**, **Auto Color**, **Retouch** (SpotBlend brush), **Text** (with Picasa's compass dial!), and **Fill Light** |
+| **Persistent Undo / Redo & Backups** | ✅ | ✅ | Survives app restarts via `session.json`; backs up untouched files to `.pica_originals/` |
+| **1-Up & A/B Split Viewer + Histogram** | ✅ | ✅ | Zoom, pan, live RGB histogram, EXIF "Info for Nerds" drawer, and before/after split view |
+| **Offline Face Detection & People View** | ✅ | ✅ | Finds faces, groups them into People albums, lets you name, merge, or ignore clusters |
+| **Fine Tuning Sliders (Tab 2)** | 🙈 Hidden | 🧪 Visible | Live CSS preview for Highlights, Shadows, Color Temp (backend baking still WIP) |
+| **36 Creative Effects / Frames (Tabs 3–5)** | 🙈 Hidden | 🧪 Visible | Live CSS preview for Sepia, Lomo, Polaroid, Holga, etc. (backend baking still WIP) |
+| **Batch Export Tray Button** | 🙈 Hidden | 🧪 Visible | UI button ready in Photo Tray; batch disk export pipeline still WIP |
+| **Developer Debug Menu & HUD** | 🙈 Hidden | 🧪 Visible | Top-bar `Bug` menu for switching face detectors, profiling CSV timings, and inspecting edit steps |
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+---
 
-**Why include `.vscode/extensions.json`?**
+## 🏃‍♂️ One-Click Quickstart (Linux)
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
+**TL;DR:** Install the Tauri system libraries once, then run one command to launch Pica.
 
-**Why enable `allowJs` in the TS template?**
+### 1. Install System Dependencies (Ubuntu / Debian)
+Click the copy button on the top-right of this box and paste into your terminal:
 
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+```bash
+sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
+
+*(On Fedora or Arch? Grab the one-click command in [docs/development.md](docs/development.md)!)*
+
+### 2. Clone & Launch in Development Mode
+```bash
+git clone https://github.com/your-username/pica.git && cd pica && npm install && npm run tauri dev
+```
+
+### 3. Build a Clean Release Binary (Hides Unfinished UI)
+```bash
+npm run tauri build
+```
+
+---
+
+## 📚 Documentation Map (ADHD & Bot Friendly)
+
+Hate reading long docs? Every file in [`docs/`](docs/) starts with a **TL;DR**, uses plain English, and has pre-filled copy-paste commands:
+
+- 🏗️ **[Architecture Guide (`docs/architecture.md`)](docs/architecture.md)** — How the Rust engine, localhost image server, non-destructive editor, and face AI work together.
+- 🧠 **[Face Detection & Grouping (`docs/face-detection.md`)](docs/face-detection.md)** — Deep dive (in plain English) into YuNet, 5-point alignment, MobileFaceNet embeddings, and Picasa's "Sow & Grow" clustering.
+- 🛠️ **[Developer Guide (`docs/development.md`)](docs/development.md)** — One-click commands to run, test, debug, and reset caches.
+- 🤖 **[Bot & Agent Manual (`docs/bots.md`)](docs/bots.md)** (and [`AGENTS.md`](AGENTS.md)) — Strict rules, file maps, and IPC contracts for AI coding assistants.
+- 🧠 **[Architecture Decisions (`docs/decisions/`)](docs/decisions/README.md)** — Short ADRs explaining *why* we built things the way we did.
+- 📝 **[Changelog (`docs/changelog.md`)](docs/changelog.md)** — What changed and when.
+- 📜 **[License (`LICENSE`)](LICENSE) & [Third-Party Notices (`THIRD_PARTY_NOTICES.md`)](THIRD_PARTY_NOTICES.md)** — Permissive Non-Commercial License (do almost anything, contact the author if you want to make a profit).
+
+---
+
+## 🤝 Contributing
+
+Found a bug? Want to wire up the Rust pixel shader for the 36 Creative Effects or build the Batch Export pipeline?
+1. Check out [docs/development.md](docs/development.md) and [docs/architecture.md](docs/architecture.md).
+2. Point your favorite AI coding assistant (or your own fingers) at [AGENTS.md](AGENTS.md).
+3. Open a PR!
+
+---
+
+## ⚖️ License
+
+**TL;DR:** Pica is licensed under the **[Pica Permissive Non-Commercial License (`LICENSE`)](LICENSE)**. You are free to use, modify, fork, and share it for almost anything (personal, academic, open-source, or non-profit use). **If you want to make commercial profit from this software, you must contact the author first.** See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for details on third-party libraries and models.
+

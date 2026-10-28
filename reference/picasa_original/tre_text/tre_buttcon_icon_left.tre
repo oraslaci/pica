@@ -1,5 +1,0 @@
-#includeonce macros.tre
-Property button_state_decrect_n globalbuttons/checkbox2_n
-Property button_state_decrect_p globalbuttons/checkbox2_p
-Property button_state_decrect_h globalbuttons/checkbox2_h
-Property button_buttcon

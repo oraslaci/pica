@@ -2,17 +2,21 @@
   "name": "pica",
   "private": true,
   "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "./src-tauri/target/debug/app --server",
     "desktop": "tauri dev",
     "build": "vite build",
+    "package": "tauri build",
+    "package:appimage": "tauri build --bundles appimage",
+    "package:deb": "tauri build --bundles deb",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tauri-apps/cli": "^2.12.3",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.3",
     "svelte": "^5.57.0",
@@ -25,8 +29,6 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.3",
-    "@tauri-apps/plugin-shell": "^2.3.6",
-    "lucide-svelte": "^1.0.1",
     "tailwindcss": "^4.3.3"
   }
 }

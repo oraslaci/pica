@@ -1,0 +1,38 @@
+# Pica Permissive Non-Commercial License (PPNCL-1.0)
+
+> **TL;DR (Plain-English Summary — Not Legal Advice):**
+> - ✅ **Do Almost Anything:** You are free to run, study, fork, modify, remix, and share Pica (or any of its crates/libraries) for **personal, hobby, educational, academic, charity, or free open-source use**.
+> - 💰 **Want to Make Profit? Contact the Author First:** If you want to sell Pica, bundle it into a paid/commercial product, offer it as a monetized service, or otherwise make commercial profit from this software, **you must contact the author for a commercial license first**.
+> - 🤖 **No Skynet Warranty:** This software is 100% vibecoded with good intentions and is provided **"AS IS"** without warranty of any kind.
+
+---
+
+## Full License Terms
+
+Copyright (c) 2026 Pica Project Author & Contributors. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person or organization obtaining a copy of this software, its associated crates (`picasa_face`, `yunet_face`, `app_lib`), documentation, and procedural assets (collectively, the **"Software"**), to use, copy, modify, merge, publish, and distribute the Software, subject to the following conditions:
+
+### 1. Broad Non-Commercial Freedom
+You may freely use, reproduce, modify, create derivative works of, and redistribute the Software for any **Non-Commercial Purpose**, including but not limited to:
+- Personal and private use (managing and editing your own photos);
+- Free and open-source software distributions where no fee is charged for the Software;
+- Academic research, teaching, and educational use;
+- Non-profit and charitable organizations.
+
+### 2. Commercial & For-Profit Use Requires Permission
+You may **NOT** use the Software, or any derivative work thereof, for **Commercial or For-Profit Purposes** without first contacting the copyright holder and obtaining explicit written permission or a commercial license. Prohibited commercial uses without prior written permission include:
+- Selling, leasing, licensing, or charging a fee for the Software or any derivative work;
+- Bundling or embedding the Software (or its libraries) into a commercial or paid product, hardware device, or subscription service;
+- Offering the Software as a hosted, managed, or ad-supported commercial service.
+
+**To request commercial licensing permission:** Please open an issue or contact the repository owner directly via GitHub.
+
+### 3. Attribution & Notice Preservation
+The above copyright notice, this permission notice, and the disclaimer below shall be included in all copies or substantial portions of the Software.
+
+### 4. Third-Party Components
+The Software integrates third-party open-source libraries and pre-trained machine learning models governed by their respective licenses (detailed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)). Nothing in this license restricts your rights under the licenses of those third-party components.
+
+### 5. Disclaimer of Warranty & Limitation of Liability
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE (INCLUDING, WITHOUT LIMITATION, IF IT ACCIDENTALLY TURNS INTO SKYNET).
