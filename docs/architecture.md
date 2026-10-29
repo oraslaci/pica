@@ -101,6 +101,7 @@ flowchart LR
 | [`src/`](../src) | **Svelte 5 Frontend:** All windows, grids, sliders, and buttons. |
 | [`src/lib/components/LibraryGrid.svelte`](../src/lib/components/LibraryGrid.svelte) | The 120 FPS photo grid and Picasa timeline scrubber on the right edge. |
 | [`src/lib/components/ImageViewer.svelte`](../src/lib/components/ImageViewer.svelte) | The double-click photo viewer + editing sidebar (Crop, Straighten, Redeye, Retouch, Text). |
+| [`src/lib/components/PicaPhotoViewer.svelte`](../src/lib/components/PicaPhotoViewer.svelte) | Standalone frameless (`decorations: false`) eye-candy photo viewer (`pica --viewer <file>`) sharing the Editor's darkroom design language, `<Histogram />`, and `<PropertiesSidebar />` (see [`docs/design-guide.md`](design-guide.md)). |
 | [`src/lib/api.ts`](../src/lib/api.ts) | Every function the frontend uses to talk to the Rust backend. |
 | [`src-tauri/src/`](../src-tauri/src) | **Rust Backend:** Database, folder scanner, image editor, HTTP server, and face AI worker. |
 | [`src-tauri/src/editor.rs`](../src-tauri/src/editor.rs) | All the actual image math (Crop suggestions, Hough horizon straighten, Red-eye repair, SpotBlend retouch, Text baking, Fill Light curves). |

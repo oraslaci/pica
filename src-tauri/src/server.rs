@@ -1266,6 +1266,48 @@ fn handle_request(
             .with_header(cors_header);
     }
 
+    // GET /api/viewer/folder?path={encoded}
+    if url.starts_with("/api/viewer/folder") && method == &Method::Get {
+        if let Some(pos) = url.find("path=") {
+            let s = &url[pos + 5..];
+            let path_part = s.split('&').next().unwrap_or(s);
+            let decoded = percent_encoding::percent_decode_str(path_part)
+                .decode_utf8_lossy()
+                .to_string();
+            if let Ok(ctx) = crate::commands::get_viewer_folder_context_inner(&decoded, &state) {
+                let json = serde_json::to_string(&ctx).unwrap_or_default();
+                return Response::from_string(json)
+                    .with_header(cors_header)
+                    .with_header(json_header);
+            }
+        }
+        return Response::from_string(r#"{"error":"Failed to get viewer folder context"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // GET /api/viewer/metadata?path={encoded}
+    if url.starts_with("/api/viewer/metadata") && method == &Method::Get {
+        if let Some(pos) = url.find("path=") {
+            let s = &url[pos + 5..];
+            let path_part = s.split('&').next().unwrap_or(s);
+            let decoded = percent_encoding::percent_decode_str(path_part)
+                .decode_utf8_lossy()
+                .to_string();
+            if let Ok(meta) = crate::commands::get_viewer_photo_metadata_inner(&decoded, &state) {
+                let json = serde_json::to_string(&meta).unwrap_or_default();
+                return Response::from_string(json)
+                    .with_header(cors_header)
+                    .with_header(json_header);
+            }
+        }
+        return Response::from_string(r#"{"error":"Failed to get metadata"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
     Response::from_string("")
         .with_status_code(StatusCode(404))
         .with_header(cors_header)

@@ -12,6 +12,7 @@
 | **[002](002-non-destructive-edit-sessions.md)** | Non-Destructive Edit Sessions & `.pica_originals` | ✅ Accepted | Store edit steps in `~/.local/share/pica/edits/<hash>/session.json` and back up untouched files to `.pica_originals/` on save. |
 | **[003](003-offline-face-pipeline-yunet-sowgrow.md)** | Offline Face Pipeline: YuNet + MobileFaceNet + Sow & Grow | ✅ Accepted | Use YuNet for detection, 5-point aligned MobileFaceNet for 512-D embeddings, and Picasa's Sow & Grow algorithm for high-precision clustering. |
 | **[004](004-dev-vs-release-feature-gating.md)** | Dev vs. Release UI Feature Gating (`import.meta.env.DEV`) | ✅ Accepted | Hide unimplemented/CSS-only UI controls in release builds using `import.meta.env.DEV` while keeping them visible in dev mode. |
+| **[005](005-pica-photo-viewer.md)** | Pica Photo Viewer (Standalone Multi-Window Viewer) | ✅ Accepted | Standalone multi-window viewer inspired by Picasa Photo Viewer with floating glass dock, pan/zoom, filmstrip scrubber, and instant "Edit in Pica" handoff. |
 
 ---
 

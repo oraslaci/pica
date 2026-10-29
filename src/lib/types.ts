@@ -32,6 +32,13 @@ export interface FolderWithPhotos {
   photos: Photo[];
 }
 
+export interface ViewerFolderContext {
+  current_index: number;
+  folder_name: string;
+  folder_path: string;
+  photos: Photo[];
+}
+
 export interface ScanProgress {
   current_folder: string;
   current_file?: string;

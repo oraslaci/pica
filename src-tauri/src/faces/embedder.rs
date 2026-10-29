@@ -14,12 +14,10 @@ pub struct HighAccuracyFaceEmbedder {
 
 impl HighAccuracyFaceEmbedder {
     pub fn new(model_path: PathBuf) -> Self {
-        let session = Self::create_session(&model_path).ok();
-        let is_ready = session.is_some();
         Self {
             model_path,
-            is_available: Arc::new(AtomicBool::new(is_ready)),
-            session: Arc::new(std::sync::Mutex::new(session)),
+            is_available: Arc::new(AtomicBool::new(true)),
+            session: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
@@ -30,6 +28,7 @@ impl HighAccuracyFaceEmbedder {
     pub(crate) fn create_session(model_path: &std::path::Path) -> Result<ort::session::Session, String> {
         if model_path.exists() {
             if let Ok(sess) = ort::session::Session::builder()
+                .and_then(|b| Ok(b.with_intra_threads(2)?))
                 .and_then(|mut b| b.commit_from_file(model_path))
             {
                 return Ok(sess);
@@ -47,6 +46,7 @@ impl HighAccuracyFaceEmbedder {
         for cand in &candidates {
             if cand.exists() {
                 if let Ok(sess) = ort::session::Session::builder()
+                    .and_then(|b| Ok(b.with_intra_threads(2)?))
                     .and_then(|mut b| b.commit_from_file(cand))
                 {
                     return Ok(sess);
@@ -56,6 +56,7 @@ impl HighAccuracyFaceEmbedder {
 
         const EMBEDDED_ARCFACE: &[u8] = include_bytes!("../../models/arcface_mbf.onnx");
         ort::session::Session::builder()
+            .and_then(|b| Ok(b.with_intra_threads(2)?))
             .and_then(|mut b| b.commit_from_memory(EMBEDDED_ARCFACE))
             .map_err(|e| format!("Failed to create ArcFace ONNX session: {}", e))
     }

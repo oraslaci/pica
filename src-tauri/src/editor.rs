@@ -22,6 +22,7 @@ use crate::thumbnailer::{ThumbnailManager, DEFAULT_THUMBNAIL_SIZE};
 pub struct EditorManager {
     pub edits_dir: PathBuf,
     pub session_lock: std::sync::Mutex<()>,
+    session_index: std::sync::Mutex<Option<std::collections::HashMap<i64, String>>>,
 }
 
 impl EditorManager {
@@ -34,6 +35,7 @@ impl EditorManager {
         Self {
             edits_dir,
             session_lock: std::sync::Mutex::new(()),
+            session_index: std::sync::Mutex::new(None),
         }
     }
 
@@ -42,6 +44,7 @@ impl EditorManager {
         Self {
             edits_dir,
             session_lock: std::sync::Mutex::new(()),
+            session_index: std::sync::Mutex::new(None),
         }
     }
 
@@ -66,17 +69,26 @@ impl EditorManager {
         if let Some(m) = self.load_manifest(&photo.file_hash) {
             return Some(m);
         }
-        if let Ok(entries) = fs::read_dir(&self.edits_dir) {
-            for entry in entries.flatten() {
-                let sess_file = entry.path().join("session.json");
-                if sess_file.exists() {
-                    if let Ok(content) = fs::read_to_string(&sess_file) {
-                        if let Ok(m) = serde_json::from_str::<EditSessionManifest>(&content) {
-                            if m.photo_id == photo.id || m.original_path == photo.file_path {
-                                return Some(m);
+        if let Ok(mut idx_guard) = self.session_index.lock() {
+            let map = idx_guard.get_or_insert_with(|| {
+                let mut m_map = std::collections::HashMap::new();
+                if let Ok(entries) = fs::read_dir(&self.edits_dir) {
+                    for entry in entries.flatten() {
+                        let sess_file = entry.path().join("session.json");
+                        if sess_file.exists() {
+                            if let Ok(content) = fs::read_to_string(&sess_file) {
+                                if let Ok(m) = serde_json::from_str::<EditSessionManifest>(&content) {
+                                    m_map.insert(m.photo_id, m.base_hash);
+                                }
                             }
                         }
                     }
+                }
+                m_map
+            });
+            if let Some(base_hash) = map.get(&photo.id) {
+                if let Some(m) = self.load_manifest(base_hash) {
+                    return Some(m);
                 }
             }
         }
@@ -84,6 +96,7 @@ impl EditorManager {
     }
 
     pub fn sync_sessions_to_db(&self, db: &DbManager) {
+        let mut m_map = std::collections::HashMap::new();
         if let Ok(entries) = fs::read_dir(&self.edits_dir) {
             for entry in entries.flatten() {
                 let sess_file = entry.path().join("session.json");
@@ -98,10 +111,14 @@ impl EditorManager {
                             };
                             let _ = db.update_photo_edit_rotation(m.photo_id, rot);
                             let _ = db.update_photo_unsaved_edits(m.photo_id, is_unsaved);
+                            m_map.insert(m.photo_id, m.base_hash);
                         }
                     }
                 }
             }
+        }
+        if let Ok(mut idx_guard) = self.session_index.lock() {
+            *idx_guard = Some(m_map);
         }
     }
 
@@ -113,6 +130,11 @@ impl EditorManager {
         let content = serde_json::to_string_pretty(manifest).map_err(|e| e.to_string())?;
         fs::write(&tmp_path, content).map_err(|e| e.to_string())?;
         fs::rename(&tmp_path, path).map_err(|e| e.to_string())?;
+        if let Ok(mut idx_guard) = self.session_index.lock() {
+            if let Some(ref mut map) = *idx_guard {
+                map.insert(manifest.photo_id, manifest.base_hash.clone());
+            }
+        }
         Ok(())
     }
 

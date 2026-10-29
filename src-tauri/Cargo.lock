@@ -96,7 +96,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3023,7 +3023,7 @@ dependencies = [
 
 [[package]]
 name = "picasa_face"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
@@ -5862,7 +5862,7 @@ dependencies = [
 
 [[package]]
 name = "yunet_face"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "image",
  "ort",

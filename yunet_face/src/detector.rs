@@ -37,9 +37,8 @@ impl YuNetDetector {
         score_threshold: f32,
         nms_threshold: f32,
     ) -> Self {
-        let session = Self::create_session().ok();
         Self {
-            session: Arc::new(Mutex::new(session)),
+            session: Arc::new(Mutex::new(None)),
             input_width,
             input_height,
             score_threshold,
@@ -57,6 +56,7 @@ impl YuNetDetector {
         for path in &candidates {
             if path.exists() {
                 if let Ok(sess) = Session::builder()
+                    .and_then(|b| Ok(b.with_intra_threads(2)?))
                     .and_then(|mut b| b.commit_from_file(path))
                 {
                     return Ok(sess);
@@ -66,12 +66,13 @@ impl YuNetDetector {
 
         // Fallback to embedded bytes
         Session::builder()
+            .and_then(|b| Ok(b.with_intra_threads(2)?))
             .and_then(|mut b| b.commit_from_memory(EMBEDDED_YUNET))
             .map_err(|e| format!("Failed to create YuNet session: {:?}", e))
     }
 
     pub fn is_ready(&self) -> bool {
-        self.session.lock().map(|s| s.is_some()).unwrap_or(false)
+        true
     }
 
     /// Detect faces on an image.
@@ -81,6 +82,10 @@ impl YuNetDetector {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };
+
+        if sess_guard.is_none() {
+            *sess_guard = Self::create_session().ok();
+        }
 
         let session = match sess_guard.as_mut() {
             Some(s) => s,

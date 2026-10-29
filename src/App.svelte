@@ -22,6 +22,7 @@
     getPhotosForPerson,
     updatePersonName,
     getFaceCropUrl,
+    isTauri,
   } from './lib/api';
   import type {
     FaceCollection,
@@ -421,12 +422,55 @@
       } catch {}
     }, 4000);
 
+    // Cross-window event listener from Standalone Viewer: "open-in-pica-editor"
+    let unlistenOpenEditor: (() => void) | null = null;
+    if (isTauri) {
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen<string>('open-in-pica-editor', async (event) => {
+          const filePath = event.payload;
+          if (!filePath) return;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            for (const g of folderGroups) {
+              const idx = g.photos.findIndex((p) => p.file_path === filePath);
+              if (idx !== -1) {
+                viewerPhotos = g.photos;
+                viewerIndex = idx;
+                isViewerOpen = true;
+                return;
+              }
+            }
+            if (attempt === 0) await refreshData();
+          }
+        }).then((unsub) => {
+          unlistenOpenEditor = unsub;
+        });
+      });
+    }
+
+    // Check if initial URL had a file param to open immediately in editor
+    const initialParams = new URLSearchParams(window.location.search);
+    const initialFile = initialParams.get('file');
+    if (initialFile) {
+      refreshData().then(() => {
+        for (const g of folderGroups) {
+          const idx = g.photos.findIndex((p) => p.file_path === initialFile);
+          if (idx !== -1) {
+            viewerPhotos = g.photos;
+            viewerIndex = idx;
+            isViewerOpen = true;
+            break;
+          }
+        }
+      });
+    }
+
     return () => {
       clearInterval(faceInterval);
       window.removeEventListener('keydown', handleKeyDown);
       if (typeof unsubProgress === 'function') unsubProgress();
       if (typeof unsubComplete === 'function') unsubComplete();
       if (typeof unsubFaceProgress === 'function') unsubFaceProgress();
+      if (unlistenOpenEditor) unlistenOpenEditor();
     };
   });
 </script>
@@ -435,6 +479,12 @@
   class="h-screen w-screen flex flex-col select-none overflow-hidden font-sans transition-colors"
   style="background-color: var(--canvas-bg); color: var(--text-main);"
 >
+  <!-- Background Library Shell (Hidden from GPU compositor when Fullscreen Editor is open) -->
+  <div
+    class="flex-1 flex flex-col overflow-hidden"
+    class:invisible={isViewerOpen}
+    class:pointer-events-none={isViewerOpen}
+  >
   <!-- Classic Picasa Header Bar -->
   <TopBar
     bind:searchQuery
@@ -622,6 +672,7 @@
     onExport={handleExport}
     onOpenProcessingNotification={() => (isProcessingManuallyOpened = true)}
   />
+  </div>
 
   <!-- Folder Manager Dialog -->
   <FolderManagerModal

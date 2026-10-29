@@ -4,6 +4,44 @@
 
 ---
 
+## [0.2.0] — 2026-10-29
+
+### 🎨 Canonical Design Guide & Frameless Eye-Candy Viewer
+- **Canonical Design System ([`docs/design-guide.md`](design-guide.md)):**
+  - Codified the unified Pica Darkroom design language shared across the Library, Non-Destructive Editor (`ImageViewer.svelte`), and Standalone Photo Viewer (`PicaPhotoViewer.svelte`).
+  - Documented color tokens (`#0e0e11` darkroom canvas, `bg-[#18181e]/90` + `border-[#3f3f4c]/80` floating glass HUD pills, `#3b82f6` Picasa Blue primary CTA, `#fbbf24` star gold), 6-petal Picasa shutter iconography, `font-mono` technical readouts, 380ms spring rotation physics, and component parity rules.
+- **Frameless Window (`decorations: false`):**
+  - Removed the native OS window title bar and full-width top header bar in `PicaPhotoViewer.svelte` and `open_viewer_window` (`src-tauri/src/commands.rs`) so photos occupy 100% of the window edge-to-edge.
+  - Added custom draggable floating top-left identity pill (`data-tauri-drag-region`) with the 6-petal colorful Picasa shutter emblem, filename, index counter, and quick EXIF summary, plus top-right custom window controls (Fullscreen, Minimize, Maximize, Close).
+- **Eye-Candy Darkroom Visuals & Shared Inspector Parity:**
+  - Added dynamic ambient photo-color glow backdrop (`blur-[90px] saturate-150 opacity-25`) behind the active image.
+  - Integrated the Editor's exact `<Histogram />` component (bottom-left floating overlay, toggleable via `H`) and `<PropertiesSidebar />` drawer (right-hand inspector, toggleable via `I`) directly into `PicaPhotoViewer.svelte`.
+  - Unified the bottom HUD pill and `.picasa-station-slider` zoom controls with `ImageViewer.svelte`, paired with a floating rounded glass filmstrip ribbon (`rounded-2xl`).
+
+### ⚡ Performance & Memory Optimizations (Viewer + Editor)
+- **Async Tauri IPC Commands ([`src-tauri/src/commands.rs`](../src-tauri/src/commands.rs)):** Converted all synchronous `#[tauri::command]` handlers to `pub async fn` so database queries, EXIF parsing, and full-resolution pixel operations execute on background worker threads instead of blocking the main GTK window loop.
+- **Off-Main-Thread Image Streaming ([`src/lib/api.ts`](../src/lib/api.ts)):** Routed all thumbnail, full-resolution photo, preview, and face-crop URLs through the multi-threaded `127.0.0.1:3456` HTTP server (`Cache-Control: immutable`) instead of the synchronous `pica://` custom URI scheme handler.
+- **Single-Renderer Standalone Viewer & Lazy ONNX Initialization ([`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs), [`embedder.rs`](../src-tauri/src/faces/embedder.rs), [`detector.rs`](../yunet_face/src/detector.rs)):**
+  - Closed the unused background `"main"` WebKit window when launching directly in `--viewer` CLI mode, reducing Viewer memory usage from **`577.0 MB` to `382.5 MB` RSS (`-194.5 MB` / `-33.7%`)** and cutting peak startup CPU from **`195.8%` to `80.4%`**.
+  - Deferred `YuNet` and `ArcFace` ONNX Runtime session allocation until first actual face/red-eye inference with bounded intra-op threads (`with_intra_threads(2)`).
+  - Made `EditorManager::find_session_for_photo` $O(1)$ by checking `photo.file_hash` directly instead of scanning `~/.local/share/pica/edits/` on every photo switch (`get_edit_session` latency reduced from `1.41 ms` to `0.57 ms`).
+- **GPU Compositor & Wheel-Zoom Responsiveness ([`PicaPhotoViewer.svelte`](../src/lib/components/PicaPhotoViewer.svelte), [`ImageViewer.svelte`](../src/lib/components/ImageViewer.svelte), [`App.svelte`](../src/App.svelte)):**
+  - Switched the Viewer's ambient blurred backdrop glow (`blur-2xl saturate-150`) from the full-resolution `4320×3085` photo to the cached `240px` thumbnail (`320×` fewer pixels to blur on the GPU).
+  - Disabled CSS `transform` transitions during active mouse-wheel zoom ticks (`isWheelZooming`) and added `will-change: transform` + `decoding="async"` for zero-latency 120 FPS pan/zoom.
+  - Hidden the background library grid (`invisible pointer-events-none`) while the fullscreen Editor is open so WebKit does not composite hundreds of thumbnails behind the Editor canvas.
+
+### 🖼️ Standalone Pica Photo Viewer Architecture
+- **Dedicated Multi-Window Viewer:** Implemented a lightweight, standalone, distraction-free photo viewer inspired by Google Picasa's iconic `PicasaPhotoViewer.exe` (see [ADR 005](decisions/005-pica-photo-viewer.md)).
+- **CLI & File Association Support:**
+  - Launchable directly from terminal or file manager via `pica <file>` or `pica --viewer <file>` without launching the heavy library grid.
+  - Sibling directory discovery scans the parent folder in milliseconds, automatically populating navigation and the thumbnail scrubber even for photos outside Pica's watched folders.
+- **Close Ties to Pica:**
+  - Prominent **"Edit in Pica"** button on the floating dock that focuses/unminimizes the main Pica window and transitions straight into the non-destructive editor suite for that exact image.
+  - Pop-out button inside Pica's 1-Up viewer allowing users to pop any photo into the standalone viewer anytime.
+  - Live 380ms spring rotation and favorite status synchronization with Pica's database and edit sessions.
+
+---
+
 ## [0.1.0] — 2026-10-28 (Initial Public GitHub Release Prep)
 
 ### 🎨 Branding & Visuals

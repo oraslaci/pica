@@ -45,6 +45,14 @@ pub struct FolderWithPhotos {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewerFolderContext {
+    pub current_index: usize,
+    pub folder_name: String,
+    pub folder_path: String,
+    pub photos: Vec<Photo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanProgress {
     pub current_folder: String,
     #[serde(default)]

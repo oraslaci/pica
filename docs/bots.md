@@ -19,7 +19,8 @@
 4. **Preserve Original Photos:**
    - Never mutate a user's photo on disk during interactive editing. Interactive edits write to `~/.local/share/pica/edits/<file_hash>/session.json`.
    - Only write to the user's photo folder when `save_edit_session` is called, and always honor the `.pica_originals/` backup mechanism (see [ADR 002](decisions/002-non-destructive-edit-sessions.md)).
-5. **Keep Docs & ADRs in Sync:**
+5. **Follow the Canonical Design Guide & Keep Docs in Sync:**
+   - All UI additions or changes across the Editor and Viewer must adhere to **[`docs/design-guide.md`](design-guide.md)** (darkroom palette, translucent `#18181e]/90` HUD pills, `#3b82f6` Picasa Blue accents, `font-mono` technical readouts, 380ms spring rotation physics, and shared inspector widgets).
    - When you add/complete a feature, update [`docs/changelog.md`](changelog.md).
    - When you make a significant architectural choice, add a short ADR in [`docs/decisions/`](decisions/README.md).
 
@@ -28,14 +29,16 @@
 ## 🧭 Codebase Map for Fast Context Lookup
 
 ### Frontend (`src/` — Svelte 5 + TypeScript + Tailwind CSS v4)
-- **Entry & Layout:** [`src/App.svelte`](../src/App.svelte) — Manages global library state, active filters (search, favorites, folder, person), modal visibility, and keyboard shortcuts.
+- **Entry & Layout:** [`src/main.ts`](../src/main.ts) & [`src/App.svelte`](../src/App.svelte) — Routes between the main Library/Editor window (`App.svelte`) and the standalone frameless Viewer (`PicaPhotoViewer.svelte`), managing global library state, active filters, and IPC event handoff.
 - **IPC Bridge:** [`src/lib/api.ts`](../src/lib/api.ts) — Typed wrappers around every `@tauri-apps/api/core` `invoke()` call and localhost image server URL builders (`getThumbnailUrl`, `getPreviewImageUrl`, `getFaceCropUrl`).
 - **Types:** [`src/lib/types.ts`](../src/lib/types.ts) — TypeScript interfaces mirroring [`src-tauri/src/models.rs`](../src-tauri/src/models.rs).
 - **Components:**
-  - [`src/lib/components/TopBar.svelte`](../src/lib/components/TopBar.svelte) — Search bar, filter chips, theme switcher, settings trigger, and dev-only `Bug` debug menu.
+  - [`src/lib/components/TopBar.svelte`](../src/lib/components/TopBar.svelte) — 6-petal Picasa shutter brand, search bar, filter chips, theme switcher, settings trigger, and dev-only `Bug` debug menu.
   - [`src/lib/components/Sidebar.svelte`](../src/lib/components/Sidebar.svelte) — Collapsible Folders tree (flat or nested) and People (face clusters) list with rename/merge/ignore actions.
   - [`src/lib/components/LibraryGrid.svelte`](../src/lib/components/LibraryGrid.svelte) — Virtualized photo grid grouped by folder + Picasa fast-scroll scrubber bar.
   - [`src/lib/components/ImageViewer.svelte`](../src/lib/components/ImageViewer.svelte) — 1-Up & A/B Split viewer, Basic Fixes editing suite, Text compass dial, Crop/Straighten/Redeye/Retouch overlays, and floating HUD.
+  - [`src/lib/components/PicaPhotoViewer.svelte`](../src/lib/components/PicaPhotoViewer.svelte) — Standalone frameless (`decorations: false`) eye-candy photo viewer with ambient color glow, floating 6-petal shutter badge, shared `<Histogram />` & `<PropertiesSidebar />`, 380ms spring rotation, floating HUD pill, glass filmstrip scrubber, and "Edit in Pica" handoff.
+  - [`src/lib/components/Histogram.svelte`](../src/lib/components/Histogram.svelte) & [`PropertiesSidebar.svelte`](../src/lib/components/PropertiesSidebar.svelte) — Shared RGB luminance histogram and EXIF/Camera inspector drawer used by both the Editor and Standalone Viewer.
   - [`src/lib/components/BottomBar.svelte`](../src/lib/components/BottomBar.svelte) & [`PhotoTray.svelte`](../src/lib/components/PhotoTray.svelte) — Persistent bottom selection tray and thumbnail size slider.
 
 ### Backend (`src-tauri/` & Workspace Crates — Rust)

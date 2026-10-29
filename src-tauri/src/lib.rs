@@ -11,7 +11,7 @@ use std::fs;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tauri::http::{header, Response, StatusCode};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 use commands::AppState;
 use db::DbManager;
@@ -36,7 +36,13 @@ pub fn run_server_only() {
     initialize_default_folders(&db);
     let thumbnailer = Arc::new(ThumbnailManager::new());
     let editor = Arc::new(EditorManager::new());
-    editor.sync_sessions_to_db(&db);
+    {
+        let editor_bg = editor.clone();
+        let db_bg = db.clone();
+        std::thread::spawn(move || {
+            editor_bg.sync_sessions_to_db(&db_bg);
+        });
+    }
     let available_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -97,7 +103,13 @@ pub fn run() {
 
     let thumbnailer = Arc::new(ThumbnailManager::new());
     let editor = Arc::new(EditorManager::new());
-    editor.sync_sessions_to_db(&db);
+    {
+        let editor_bg = editor.clone();
+        let db_bg = db.clone();
+        std::thread::spawn(move || {
+            editor_bg.sync_sessions_to_db(&db_bg);
+        });
+    }
     let available_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -250,6 +262,11 @@ pub fn run() {
             commands::recluster_faces,
             commands::realign_face_embeddings,
             commands::get_photo_metadata,
+            commands::get_viewer_folder_context,
+            commands::get_viewer_photo_metadata,
+            commands::open_viewer_window,
+            commands::open_in_pica_editor,
+            commands::rotate_viewer_photo,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -260,6 +277,24 @@ pub fn run() {
             faces_setup.set_progress_callback(move |prog| {
                 let _ = face_handle.emit("face-scan-progress", prog);
             });
+
+            let args: Vec<String> = std::env::args().collect();
+            let is_viewer_mode = args.iter().any(|a| a == "--viewer" || a == "-v");
+            let image_file = args.iter().skip(1).find(|a| {
+                !a.starts_with('-') && {
+                    let p = std::path::Path::new(a);
+                    crate::scanner::Scanner::is_supported_image(p)
+                }
+            }).cloned();
+
+            if is_viewer_mode || image_file.is_some() {
+                let target = image_file;
+                let _ = commands::open_viewer_window(app.handle().clone(), target);
+                if let Some(main_win) = app.get_webview_window("main") {
+                    let _ = main_win.close();
+                }
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

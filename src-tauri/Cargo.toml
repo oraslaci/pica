@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.2.0"
 description = "Pica - Offline-first photo manager and non-destructive editor inspired by Google Picasa"
 authors = ["Pica Contributors"]
 license-file = "../LICENSE"

@@ -21,6 +21,7 @@ import type {
   RetouchSpot,
   StraightenSuggestion,
   TextItem,
+  ViewerFolderContext,
 } from './types';
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -208,33 +209,21 @@ export async function getLibraryStats(): Promise<LibraryStats> {
 
 export function getThumbnailUrl(photo: Photo, cacheBuster?: string | number): string {
   const cb = cacheBuster !== undefined ? `?v=${cacheBuster}` : '';
-  if (isTauri) {
-    return `pica://localhost/thumb/${photo.file_hash}${cb}`;
-  }
   return `${SERVER_URL}/thumb/${photo.file_hash}${cb}`;
 }
 
 export function getFullImageUrl(photo: Photo, cacheBuster?: string | number): string {
   const cb = cacheBuster !== undefined ? `&v=${cacheBuster}` : `&v=${photo.file_hash}`;
-  if (isTauri) {
-    return `pica://localhost/file?path=${encodeURIComponent(photo.file_path)}${cb}`;
-  }
   return `${SERVER_URL}/photo?path=${encodeURIComponent(photo.file_path)}${cb}`;
 }
 
 export function getOriginalImageUrl(photo: Photo, backupPath?: string | null): string {
   const targetPath = backupPath || photo.file_path;
-  if (isTauri) {
-    return `pica://localhost/file?path=${encodeURIComponent(targetPath)}`;
-  }
   return `${SERVER_URL}/photo?path=${encodeURIComponent(targetPath)}`;
 }
 
 export function getPreviewImageUrl(filePath: string, cacheBuster?: string | number): string {
   const cb = cacheBuster !== undefined ? `&v=${cacheBuster}` : '';
-  if (isTauri) {
-    return `pica://localhost/file?path=${encodeURIComponent(filePath)}${cb}`;
-  }
   return `${SERVER_URL}/photo?path=${encodeURIComponent(filePath)}${cb}`;
 }
 
@@ -848,9 +837,6 @@ export async function applyFillLight(photoId: number, amount: number): Promise<E
 // ---------------------------------------------------------------------------
 
 export function getFaceCropUrl(faceId: number): string {
-  if (isTauri) {
-    return `pica://face/${faceId}`;
-  }
   return `${SERVER_URL}/api/faces/${faceId}/crop`;
 }
 
@@ -1091,6 +1077,76 @@ export async function getPhotoMetadata(photoId: number): Promise<PhotoMetadata> 
   }
   const res = await fetch(`${SERVER_URL}/api/photo/metadata?id=${photoId}`);
   if (!res.ok) throw new Error('Failed to load photo metadata');
+  return await res.json();
+}
+
+export async function getViewerFolderContext(filePath: string): Promise<ViewerFolderContext> {
+  if (isTauri) {
+    try {
+      return await invoke<ViewerFolderContext>('get_viewer_folder_context', { filePath });
+    } catch (e) {
+      console.warn('Tauri get_viewer_folder_context failed, falling back to HTTP:', e);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/viewer/folder?path=${encodeURIComponent(filePath)}`);
+  if (!res.ok) throw new Error('Failed to load viewer folder context');
+  return await res.json();
+}
+
+export async function getViewerPhotoMetadata(filePath: string): Promise<PhotoMetadata> {
+  if (isTauri) {
+    try {
+      return await invoke<PhotoMetadata>('get_viewer_photo_metadata', { filePath });
+    } catch (e) {
+      console.warn('Tauri get_viewer_photo_metadata failed, falling back to HTTP:', e);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/viewer/metadata?path=${encodeURIComponent(filePath)}`);
+  if (!res.ok) throw new Error('Failed to load viewer photo metadata');
+  return await res.json();
+}
+
+export async function openViewerWindow(filePath?: string): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('open_viewer_window', { filePath });
+    } catch (e) {
+      console.error('Failed to open viewer window:', e);
+    }
+  }
+  // Fallback for web mode: open new tab with ?mode=viewer
+  const url = filePath
+    ? `/?mode=viewer&file=${encodeURIComponent(filePath)}`
+    : '/?mode=viewer';
+  window.open(url, '_blank');
+}
+
+export async function openInPicaEditor(filePath: string): Promise<void> {
+  if (isTauri) {
+    try {
+      return await invoke('open_in_pica_editor', { filePath });
+    } catch (e) {
+      console.error('Failed to open in Pica editor:', e);
+    }
+  }
+  // Web fallback: navigate to main app with photo focus
+  window.location.href = `/?file=${encodeURIComponent(filePath)}`;
+}
+
+export async function rotateViewerPhoto(filePath: string, degrees: number): Promise<EditResult> {
+  if (isTauri) {
+    try {
+      return await invoke<EditResult>('rotate_viewer_photo', { filePath, degrees });
+    } catch (e) {
+      console.warn('Tauri rotate_viewer_photo failed:', e);
+    }
+  }
+  const res = await fetch(`${SERVER_URL}/api/viewer/rotate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_path: filePath, degrees }),
+  });
+  if (!res.ok) throw new Error('Failed to rotate photo');
   return await res.json();
 }
 

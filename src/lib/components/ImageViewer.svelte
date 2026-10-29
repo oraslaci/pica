@@ -48,6 +48,7 @@
     Bold,
     Italic,
     Underline,
+    Expand,
   } from '@lucide/svelte';
   import type { CropSuggestion, EditSessionState, FaceBox, Photo, PhotoMetadata, RedEyeBox, RetouchSpot, StraightenSuggestion, TextItem } from '../types';
   import {
@@ -79,6 +80,7 @@
     getCachedEditSession,
     getFacesForPhoto,
     getPhotoMetadata,
+    openViewerWindow,
   } from '../api';
   import Histogram from './Histogram.svelte';
   import PropertiesSidebar from './PropertiesSidebar.svelte';
@@ -122,6 +124,8 @@
   let panX = $state(0);
   let panY = $state(0);
   let isPanning = $state(false);
+  let isWheelZooming = $state(false);
+  let wheelZoomTimer: ReturnType<typeof setTimeout> | null = null;
   let panStartPointer = { x: 0, y: 0 };
   let panStartOffset = { x: 0, y: 0 };
   let showInfo = $state(false);
@@ -2974,6 +2978,13 @@
     // Don't intercept wheel if interacting with tools that require wheel/scrolling
     e.preventDefault();
 
+    isWheelZooming = true;
+    if (wheelZoomTimer) clearTimeout(wheelZoomTimer);
+    wheelZoomTimer = setTimeout(() => {
+      isWheelZooming = false;
+      wheelZoomTimer = null;
+    }, 140);
+
     const zoomFactor = Math.exp(-e.deltaY * 0.002);
     const newZoom = Math.max(1.0, Math.min(8.0, zoomLevel * zoomFactor));
 
@@ -5155,9 +5166,10 @@
             <div
               class="relative flex items-center justify-center select-none"
               style="
-                transform: rotate({effectiveCanvasRotation}deg) translate({panX}px, {panY}px) scale({zoomLevel > 1.001 ? fitScale * zoomLevel : (isZoomed100 ? 1.5 : fitScale)});
+                transform: rotate({effectiveCanvasRotation}deg) translate3d({panX}px, {panY}px, 0) scale({zoomLevel > 1.001 ? fitScale * zoomLevel : (isZoomed100 ? 1.5 : fitScale)});
                 transform-origin: center center;
-                transition: {isTransitioning ? 'transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1)' : (isPanning ? 'none' : 'transform 120ms ease-out')};
+                will-change: transform;
+                transition: {isTransitioning ? 'transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1)' : (isPanning || isWheelZooming ? 'none' : 'transform 120ms ease-out')};
               "
             >
               <div
@@ -5200,6 +5212,7 @@
                     <img
                       bind:this={mainImgRef}
                       crossorigin="anonymous"
+                      decoding="async"
                       src={activeImageSrc}
                       alt={currentPhoto.file_name}
                       onload={(e) => handleImageLoaded(e.currentTarget as HTMLImageElement)}
@@ -6102,6 +6115,15 @@
             title="Properties / Info for Nerds (i)"
           >
             <Info class="w-4 h-4" />
+          </button>
+
+          <!-- Pop out into Standalone Pica Photo Viewer -->
+          <button
+            onclick={() => currentPhoto && openViewerWindow(currentPhoto.file_path)}
+            class="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-purple-400 transition-colors cursor-pointer"
+            title="Pop out into Pica Photo Viewer"
+          >
+            <Expand class="w-4 h-4" />
           </button>
         </div>
       </div>
