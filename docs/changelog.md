@@ -4,6 +4,25 @@
 
 ---
 
+## [0.2.2] — 2026-10-29
+
+### 🚀 Built-in GitHub Update Checker & In-Place Self-Updating ([ADR 006](decisions/006-builtin-github-update-checker.md))
+- **In-Place Self-Updater (`@tauri-apps/plugin-updater` & `tauri-plugin-updater v2`):**
+  - Seamlessly downloads, verifies cryptographic signatures (`minisign`), and updates the running application binary in-place.
+  - Live percentage progress bar and download size feedback during installation.
+  - Instant one-click restart button (`app_handle.restart()`) to launch the updated version.
+- **Automated Update Detection:** Background check against GitHub Releases and Tauri updater endpoint on startup (1.5s non-blocking delay) and on-demand manual check in Settings.
+- **Modern Notice Button:** Unobtrusive pill button in the top bar with pulsing emerald radar beacon indicator when an update is available (`[ ✦ Update available v... ]`), plus status badge on Settings.
+- **One-Click Download Modal (`UpdateModal.svelte`):**
+  - Displays version transition, release notes, release date, and auto-detects user OS (Linux, Windows, macOS).
+  - Primary CTA for automatic update & restart, with secondary option for manual installer downloads (`.AppImage`, `.deb`, `.rpm`, `.exe`, `.dmg`).
+  - Safe external URL opening via Tauri IPC command `open_external_url` and embedded HTTP server fallback `/api/open-url`.
+- **Options & Preferences Integration:** Dynamic version readout, manual check button, and "Check for updates automatically on startup" toggle in `SettingsModal.svelte`.
+- **Developer Debug Tools:** One-click update simulation (`v0.3.0`) and live progress bar simulator in the dev tools menu for instant verification without waiting for a new release.
+- **Release CI Signing:** Updated `.github/workflows/release.yml` with `TAURI_SIGNING_PRIVATE_KEY` for automated artifact signing and manifest (`latest.json`) generation on GitHub releases.
+
+---
+
 ## [0.2.1] — 2026-10-29
 
 ### 📦 Standalone Release Packaging

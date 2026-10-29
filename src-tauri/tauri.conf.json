@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "pica",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "identifier": "com.pica.app",
   "build": {
     "frontendDist": "../dist",
@@ -31,13 +31,26 @@
     "targets": "all",
     "icon": [
       "icons/32x32.png",
+      "icons/64x64.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "category": "Graphics and Design",
+    "shortDescription": "Offline-first photo manager & non-destructive editor",
+    "longDescription": "Pica is an offline-first desktop photo manager and non-destructive image editor inspired by Google Picasa.",
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJBNjJCQkQwNjU3QzgzNzgKUldSNGczeGwwTHRpS2prRGYzT2VjL3R1NlNEL2V5ZHNvVkcyalp3TGliYUJBcmlab0x5dHFGbngK",
+      "endpoints": [
+        "https://github.com/oraslaci/pica/releases/latest/download/latest.json"
+      ]
     }
   }
 }

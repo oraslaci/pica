@@ -19,6 +19,7 @@
     Users,
     Loader2,
     SlidersHorizontal,
+    Sparkles,
   } from '@lucide/svelte';
   import {
     clearThumbnailCache,
@@ -34,6 +35,7 @@
   import type { FaceTimingStats } from '../types';
   import FaceTimingModal from './FaceTimingModal.svelte';
   import { showEditOverlay, showFaceDebugOverlay } from '../debugStore';
+  import { updateStore } from '../updateStore';
 
   let {
     searchQuery = $bindable(''),
@@ -667,10 +669,73 @@
                 {debugMsg}
               </div>
             {/if}
+
+            <!-- Update Checker Testing -->
+            <div class="pt-2 border-t space-y-1.5" style="border-color: var(--border-subtle);">
+              <div class="flex items-center justify-between text-[10px]" style="color: var(--text-dim);">
+                <span class="font-semibold uppercase tracking-wider">Update Checker</span>
+                <span class="font-mono">v{$updateStore.currentVersion}</span>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <button
+                  onclick={() => updateStore.simulateUpdate('0.3.0')}
+                  class="flex-1 px-2 py-1 rounded border text-[10px] font-medium bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300 transition-colors"
+                >
+                  Simulate Notice (v0.3.0)
+                </button>
+                <button
+                  onclick={() => updateStore.checkForUpdates(true)}
+                  disabled={$updateStore.isChecking}
+                  class="flex-1 px-2 py-1 rounded border text-[10px] font-medium bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-300 transition-colors disabled:opacity-50"
+                >
+                  {$updateStore.isChecking ? 'Checking...' : 'Check GitHub'}
+                </button>
+              </div>
+
+              {#if $updateStore.updateAvailable}
+                <div class="flex items-center gap-1.5">
+                  <button
+                    onclick={() => { updateStore.openModal(); updateStore.simulateSelfUpdateProgress(); }}
+                    class="flex-1 px-2 py-1 rounded border text-[10px] font-medium bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-300 transition-colors"
+                  >
+                    Simulate In-Place Update
+                  </button>
+                  <button
+                    onclick={() => updateStore.resetUpdateState()}
+                    class="px-2 py-1 rounded border text-[10px] font-medium bg-neutral-700/20 hover:bg-neutral-700/40 text-neutral-400 transition-colors"
+                    style="border-color: var(--border-subtle);"
+                  >
+                    Reset
+                  </button>
+                </div>
+              {/if}
+            </div>
           </div>
         </div>
       {/if}
     </div>
+    {/if}
+
+    <!-- Software Update Notice Button (Modern Software Style) -->
+    {#if $updateStore.updateAvailable}
+      <button
+        onclick={() => updateStore.openModal()}
+        class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full
+               bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 hover:border-emerald-400
+               text-emerald-300 hover:text-white shadow-xs transition-all duration-150 cursor-pointer animate-in fade-in"
+        title="New version available! Click to update."
+      >
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <Sparkles class="w-3.5 h-3.5 text-emerald-400" />
+        <span class="hidden md:inline">Update available</span>
+        <span class="font-mono text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          v{$updateStore.latestVersion}
+        </span>
+      </button>
     {/if}
 
     <!-- Theme Switch (Dark / Light) -->
@@ -723,7 +788,7 @@
     <!-- Options / Settings Button -->
     <button
       onclick={onOpenSettings}
-      class="p-1.5 rounded border transition-colors flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10"
+      class="relative p-1.5 rounded border transition-colors flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10"
       style="
         background-color: var(--panel-bg);
         border-color: var(--border-subtle);
@@ -732,6 +797,12 @@
       title="Options & Preferences"
     >
       <Settings class="w-3.5 h-3.5" />
+      {#if $updateStore.updateAvailable}
+        <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        </span>
+      {/if}
     </button>
   </div>
 </header>

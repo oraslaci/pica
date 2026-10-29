@@ -6,8 +6,10 @@
   import BottomBar from './lib/components/BottomBar.svelte';
   import FolderManagerModal from './lib/components/FolderManagerModal.svelte';
   import SettingsModal from './lib/components/SettingsModal.svelte';
+  import UpdateModal from './lib/components/UpdateModal.svelte';
   import ImageViewer from './lib/components/ImageViewer.svelte';
   import ProcessingNotification from './lib/components/ProcessingNotification.svelte';
+  import { updateStore } from './lib/updateStore';
   import { Edit2, Check, X, ArrowLeft } from '@lucide/svelte';
   import {
     getFoldersWithPhotos,
@@ -464,7 +466,19 @@
       });
     }
 
+    // Background update check on startup
+    let updateTimer: ReturnType<typeof setTimeout> | null = null;
+    const autoCheck = typeof window !== 'undefined'
+      ? localStorage.getItem('pica_update_auto_check') !== 'false'
+      : true;
+    if (autoCheck) {
+      updateTimer = setTimeout(() => {
+        updateStore.checkForUpdates(false);
+      }, 1500);
+    }
+
     return () => {
+      if (updateTimer) clearTimeout(updateTimer);
       clearInterval(faceInterval);
       window.removeEventListener('keydown', handleKeyDown);
       if (typeof unsubProgress === 'function') unsubProgress();
@@ -685,6 +699,9 @@
     bind:isOpen={isSettingsOpen}
     onSettingsChanged={refreshData}
   />
+
+  <!-- Software Update Dialog -->
+  <UpdateModal />
 
   <!-- Fullscreen / In-Place HUD Photo Viewer -->
   <ImageViewer

@@ -147,6 +147,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state)
         .register_uri_scheme_protocol("pica", move |_app, request| {
             let path_part = request.uri().path();
@@ -267,6 +268,9 @@ pub fn run() {
             commands::open_viewer_window,
             commands::open_in_pica_editor,
             commands::rotate_viewer_photo,
+            commands::get_app_version,
+            commands::open_external_url,
+            commands::restart_app,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

@@ -832,6 +832,58 @@ pub async fn rotate_viewer_photo(
     Err("Unable to rotate photo".to_string())
 }
 
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+pub fn open_external_url_inner(url: &str) -> Result<(), String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Invalid URL protocol: only http and https are permitted".to_string());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL with xdg-open: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL with open: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL with start: {}", e))?;
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        return Err("Unsupported OS platform for opening URL".to_string());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    open_external_url_inner(&url)
+}
+
+#[tauri::command]
+pub fn restart_app(app_handle: AppHandle) {
+    app_handle.restart();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -882,6 +934,20 @@ mod tests {
             .expect("Failed to get metadata");
         assert_eq!(meta.file_name, "img_b.jpg");
         assert!(meta.file_size > 0);
+    }
+
+    #[test]
+    fn test_get_app_version() {
+        let version = get_app_version();
+        assert!(!version.is_empty());
+        assert_eq!(version, env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn test_open_external_url_validation() {
+        assert!(open_external_url_inner("invalid-url").is_err());
+        assert!(open_external_url_inner("ftp://example.com").is_err());
+        assert!(open_external_url_inner("file:///etc/passwd").is_err());
     }
 }
 

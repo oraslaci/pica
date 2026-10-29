@@ -138,6 +138,11 @@ struct RenamePersonReq {
     name: String,
 }
 
+#[derive(Deserialize)]
+struct OpenUrlReq {
+    url: String,
+}
+
 pub fn start_http_server(state: AppState, port: u16) {
     let addr = format!("127.0.0.1:{}", port);
     let server = match Server::http(&addr) {
@@ -1306,6 +1311,39 @@ fn handle_request(
             .with_status_code(StatusCode(400))
             .with_header(cors_header)
             .with_header(json_header);
+    }
+
+    // GET /api/version
+    if url == "/api/version" && method == &Method::Get {
+        let json = format!(r#"{{"version":"{}"}}"#, env!("CARGO_PKG_VERSION"));
+        return Response::from_string(json)
+            .with_header(cors_header)
+            .with_header(json_header);
+    }
+
+    // POST /api/open-url
+    if url == "/api/open-url" && method == &Method::Post {
+        let mut body = String::new();
+        let _ = request.as_reader().read_to_string(&mut body);
+        if let Ok(req) = serde_json::from_str::<OpenUrlReq>(&body) {
+            match crate::commands::open_external_url_inner(&req.url) {
+                Ok(()) => {
+                    return Response::from_string(r#"{"status":"ok"}"#)
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+                Err(e) => {
+                    let err_json = format!(r#"{{"error":"{}"}}"#, e);
+                    return Response::from_string(err_json)
+                        .with_status_code(StatusCode(400))
+                        .with_header(cors_header)
+                        .with_header(json_header);
+                }
+            }
+        }
+        return Response::from_string(r#"{"error":"Invalid request"}"#)
+            .with_status_code(StatusCode(400))
+            .with_header(cors_header);
     }
 
     Response::from_string("")

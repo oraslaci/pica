@@ -1150,3 +1150,61 @@ export async function rotateViewerPhoto(filePath: string, degrees: number): Prom
   return await res.json();
 }
 
+export async function getAppVersion(): Promise<string> {
+  if (isTauri) {
+    try {
+      return await invoke<string>('get_app_version');
+    } catch {
+      // Fallback
+    }
+  }
+  try {
+    const res = await fetch(`${SERVER_URL}/api/version`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.version) return data.version;
+    }
+  } catch {
+    // Fallback
+  }
+  return '0.2.1';
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri) {
+    try {
+      await invoke('open_external_url', { url });
+      return;
+    } catch (e) {
+      console.warn('Tauri open_external_url failed, falling back:', e);
+    }
+  }
+  try {
+    const res = await fetch(`${SERVER_URL}/api/open-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (res.ok) return;
+  } catch {
+    // Fallback
+  }
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+export async function restartApp(): Promise<void> {
+  if (isTauri) {
+    try {
+      await invoke('restart_app');
+      return;
+    } catch (e) {
+      console.error('Failed to restart app:', e);
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.location.reload();
+  }
+}
+

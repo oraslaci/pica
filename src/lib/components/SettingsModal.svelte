@@ -10,6 +10,8 @@
     RefreshCw,
     Loader2,
     Check,
+    Download,
+    ArrowUpCircle,
   } from '@lucide/svelte';
   import {
     getAppSettings,
@@ -19,6 +21,7 @@
     reclusterFaces,
   } from '../api';
   import type { AppSettings, FaceSettings } from '../types';
+  import { updateStore, formatRelativeDate } from '../updateStore';
 
   let {
     isOpen = $bindable(false),
@@ -372,6 +375,100 @@
             </div>
           </div>
         </div>
+
+        <div class="w-full h-px" style="background-color: var(--border-subtle);"></div>
+
+        <!-- Section: Software Updates -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-bold uppercase tracking-wider" style="color: var(--text-muted);">
+              Software Updates
+            </span>
+            <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-neutral-400">
+              Current: v{$updateStore.currentVersion}
+            </span>
+          </div>
+
+          <div
+            class="p-3.5 rounded-lg border space-y-3"
+            style="
+              background-color: var(--canvas-bg);
+              border-color: var(--border-subtle);
+            "
+          >
+            {#if $updateStore.updateAvailable}
+              <!-- Update Available Notification Banner -->
+              <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-between gap-2">
+                <div class="space-y-0.5">
+                  <div class="flex items-center gap-1.5 font-semibold text-emerald-300 text-xs">
+                    <ArrowUpCircle class="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Version v{$updateStore.latestVersion} is available!</span>
+                  </div>
+                  <div class="text-[10px] text-neutral-400">
+                    {$updateStore.release?.name || 'A new version with enhancements is ready.'}
+                  </div>
+                </div>
+                <button
+                  onclick={() => updateStore.openModal()}
+                  class="px-2.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] flex items-center gap-1.5 shadow transition-colors shrink-0 cursor-pointer"
+                >
+                  <Download class="w-3.5 h-3.5" />
+                  <span>Update</span>
+                </button>
+              </div>
+            {:else if $updateStore.isChecking}
+              <div class="flex items-center gap-2 text-xs py-1 text-blue-400">
+                <Loader2 class="w-4 h-4 animate-spin text-blue-400" />
+                <span>Checking GitHub for newer releases...</span>
+              </div>
+            {:else}
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span class="text-neutral-300 font-medium text-xs">Pica is up to date</span>
+                </div>
+                {#if $updateStore.lastChecked}
+                  <span class="text-[10px]" style="color: var(--text-dim);">
+                    Checked {formatRelativeDate(new Date($updateStore.lastChecked).toISOString())}
+                  </span>
+                {/if}
+              </div>
+            {/if}
+
+            {#if $updateStore.error}
+              <div class="text-[11px] text-red-400">
+                ❌ {$updateStore.error}
+              </div>
+            {/if}
+
+            <div class="flex items-center justify-between pt-1">
+              <label class="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-400 hover:text-neutral-300 select-none">
+                <input
+                  type="checkbox"
+                  checked={$updateStore.autoCheckEnabled}
+                  onchange={(e) => updateStore.setAutoCheck((e.currentTarget as HTMLInputElement).checked)}
+                  class="rounded border-neutral-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+                <span>Check for updates automatically on startup</span>
+              </label>
+
+              <button
+                onclick={() => updateStore.checkForUpdates(true)}
+                disabled={$updateStore.isChecking}
+                class="px-2.5 py-1 rounded border text-[11px] font-medium transition-colors hover:bg-white/10 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                style="border-color: var(--border-subtle); color: var(--text-main);"
+              >
+                {#if $updateStore.isChecking}
+                  <Loader2 class="w-3 h-3 animate-spin" />
+                  <span>Checking...</span>
+                {:else}
+                  <RefreshCw class="w-3 h-3" />
+                  <span>Check Now</span>
+                {/if}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Footer Buttons -->
@@ -379,7 +476,7 @@
         class="px-5 py-3 border-t flex items-center justify-between gap-2"
         style="border-color: var(--border-subtle); background-color: var(--header-bg);"
       >
-        <span class="text-[10px]" style="color: var(--text-dim);">Pica v0.1.0</span>
+        <span class="text-[10px]" style="color: var(--text-dim);">Pica v{$updateStore.currentVersion}</span>
         <div class="flex items-center gap-2">
           <button
             onclick={() => (isOpen = false)}

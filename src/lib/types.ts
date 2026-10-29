@@ -265,3 +265,29 @@ export interface PhotoMetadata {
   resolution_unit: string | null;
   all_tags: ExifTagEntry[];
 }
+
+export interface ReleaseAsset {
+  name: string;
+  size: number;
+  browser_download_url: string;
+  content_type: string;
+}
+
+export interface ReleaseInfo {
+  version: string;
+  tag_name: string;
+  name: string;
+  body: string;
+  published_at: string;
+  html_url: string;
+  assets: ReleaseAsset[];
+}
+
+export interface UpdateCheckResult {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  release: ReleaseInfo | null;
+  checked_at: number;
+  error?: string | null;
+}
