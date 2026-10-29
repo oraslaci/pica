@@ -4,6 +4,15 @@
 
 ---
 
+## [0.2.1] — 2026-10-29
+
+### 📦 Standalone Release Packaging
+- **Embedded Frontend Production Bundles:**
+  - Resolved `Could not connect to localhost: Connection refused` in standalone release builds by integrating `npm run tauri build -- --no-bundle` into the build release pipeline so production frontend assets are directly embedded into the executable rather than falling back to the Vite dev server URL.
+  - Added git-ignored local `binaries/` testing directory with updated standalone binary.
+
+---
+
 ## [0.2.0] — 2026-10-29
 
 ### 🎨 Canonical Design Guide & Frameless Eye-Candy Viewer
