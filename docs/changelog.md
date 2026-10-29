@@ -7,6 +7,8 @@
 ## [0.1.0] — 2026-10-28 (Initial Public GitHub Release Prep)
 
 ### 🎨 Branding & Visuals
+- **Picasa-Inspired Shutter Brand & Logo:** Replaced the legacy purple icon with a high-resolution camera shutter emblem inspired by Google Picasa's iconic multi-colored aperture blades and the in-app top bar.
+- **Cross-Platform App Icons:** Regenerated all native app icon formats (`icon.ico`, `icon.icns`, 512px down to 32px PNGs, Windows Square assets) matching the new aperture design.
 - **README & Assets:** Added centered brand banner with official app icon (`assets/logo.png`) and Shields.io status badges (latest release, cross-platform build CI, downloads, non-commercial license, Tauri v2, Rust 2021, Svelte 5).
 
 ### 🧹 Cleaned Up & Public-Ready
