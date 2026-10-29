@@ -1,6 +1,25 @@
-# 📸 Pica
+<div align="center">
+  <img src="assets/logo.png" alt="Pica Logo" width="128" height="128" />
+  <h1>Pica</h1>
+  <p><strong>A blazing-fast, 100% offline desktop photo manager and non-destructive editor.</strong></p>
+  <p><em>Inspired by the legendary Google Picasa 3.9 — rebuilt from scratch with Rust (Tauri v2) and Svelte 5.</em></p>
 
-> **TL;DR:** Pica is a blazing-fast, 100% offline desktop photo manager and non-destructive editor inspired by the legendary **Google Picasa 3.9** — rebuilt from scratch with **Rust (Tauri v2)** and **Svelte 5**.
+  <p>
+    <a href="https://github.com/oraslaci/pica/releases"><img src="https://img.shields.io/github/v/release/oraslaci/pica?color=7e14ff&label=latest%20release&logo=github" alt="Latest Release"></a>
+    <a href="https://github.com/oraslaci/pica/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/oraslaci/pica/release.yml?branch=main&label=build&logo=githubactions&logoColor=white" alt="Build Status"></a>
+    <a href="https://github.com/oraslaci/pica/releases"><img src="https://img.shields.io/github/downloads/oraslaci/pica/total?color=blue&logo=github" alt="Downloads"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-Non--Commercial-purple" alt="License"></a>
+  </p>
+
+  <p>
+    <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white" alt="Tauri v2"></a>
+    <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-2021-DEA584?logo=rust&logoColor=black" alt="Rust"></a>
+    <a href="https://svelte.dev"><img src="https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white" alt="Svelte 5"></a>
+    <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational?logo=linux&logoColor=white" alt="Cross-Platform">
+  </p>
+</div>
+
+<br>
 
 > [!WARNING]
 > **Disclaimer:** This is 100% vibecoded, with good intentions using gemini. Take it with a grain of salt and don't hold me responsible, if this turns into skynet. You're also welcome to contribute. The intention is to recreate a really awesome piece of software, that let you manage your own stuff without a paid subscription. The goal is to make it just as slick and fast as the original.

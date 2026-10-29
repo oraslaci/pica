@@ -6,6 +6,9 @@
 
 ## [0.1.0] — 2026-10-28 (Initial Public GitHub Release Prep)
 
+### 🎨 Branding & Visuals
+- **README & Assets:** Added centered brand banner with official app icon (`assets/logo.png`) and Shields.io status badges (latest release, cross-platform build CI, downloads, non-commercial license, Tauri v2, Rust 2021, Svelte 5).
+
 ### 🧹 Cleaned Up & Public-Ready
 - **Removed Benchmark & Debug Clutter:** Deleted local benchmark HTML dumps (`benchmark_comparison.html`, `benchmark_yunet_comparison.html`), debug alignment PNGs, `wine_python32/`, `rust_face_cli/`, extracted `reference/` assets, and crate benchmark examples (`picasa_face/examples/`, `yunet_face/examples/`, `src-tauri/examples/`).
 - **Sanitized Personal Paths:** Removed all `/home/...` personal paths from [`FolderManagerModal.svelte`](../src/lib/components/FolderManagerModal.svelte), [`yunet_face/src/detector.rs`](../yunet_face/src/detector.rs), and Rust unit tests across `thumbnailer.rs`, `editor.rs`, `detector.rs`, `embedder.rs`, and `clustering.rs`.
