@@ -21,9 +21,6 @@
 
 <br>
 
-> [!WARNING]
-> **Disclaimer:** This is 100% vibecoded, with good intentions using gemini. Take it with a grain of salt and don't hold me responsible, if this turns into skynet. You're also welcome to contribute. The intention is to recreate a really awesome piece of software, that let you manage your own stuff without a paid subscription. The goal is to make it just as slick and fast as the original.
-
 ---
 
 ## ⚡ Why Does This Exist?
@@ -36,6 +33,12 @@ That was **Google Picasa**. Google retired it in 2016. We missed it, so we're bu
 - 🚀 **Stupidly Fast:** Rust backend + SIMD thumbnailer + virtualized Svelte 5 grid + custom localhost streaming server = butter-smooth scrolling.
 - 🛡️ **Non-Destructive Editing:** Crop, straighten, fix lighting, heal blemishes, or slap text on a photo. Undo/redo works even after you close and reopen the app. Originals are safely backed up in `.pica_originals/`.
 - 🧠 **Offline Face Grouping:** Detects and groups faces locally on your CPU using embedded neural nets (YuNet + MobileFaceNet) and Picasa's classic "Sow & Grow" clustering algorithm.
+
+---
+
+## ⚠️ Disclaimer
+
+This is 100% vibecoded with good intentions using Gemini. Take it with a grain of salt and don't hold me responsible if this turns into Skynet. You're also welcome to contribute! The intention is to recreate a really awesome piece of software that lets you manage your own stuff without a paid subscription, and make it just as slick and fast as the original.
 
 ---
 
