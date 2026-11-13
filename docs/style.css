@@ -1235,6 +1235,47 @@ body {
   color: var(--text-muted);
 }
 
+/* SmartScreen Warning Guidance Tip */
+.smartscreen-tip {
+  max-width: 620px;
+  margin: 22px auto 0;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  text-align: left;
+}
+
+.smartscreen-tip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #93c5fd;
+  margin-bottom: 6px;
+}
+
+.smartscreen-tip-header svg {
+  flex-shrink: 0;
+}
+
+.smartscreen-tip-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.smartscreen-tip-body strong {
+  color: var(--text-primary);
+}
+
+.smartscreen-tip-body em {
+  font-style: normal;
+  color: #bfdbfe;
+}
+
 /* Beta Notice & Zero Liability Disclaimer Box */
 .disclaimer-box {
   max-width: 720px;

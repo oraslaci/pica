@@ -31,15 +31,11 @@ jobs:
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin
 
-          # Windows x64 (.msi, -setup.exe)
+          # Windows x64 (-setup.exe via NSIS)
+          # Only the user-friendly NSIS setup installer is built to avoid confusing users with .msi and arm64 options.
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
-            args: --target x86_64-pc-windows-msvc
-
-          # Windows arm64 (-setup.exe via NSIS)
-          - platform: windows-latest
-            target: aarch64-pc-windows-msvc
-            args: --target aarch64-pc-windows-msvc --bundles nsis
+            args: --target x86_64-pc-windows-msvc --bundles nsis
 
     runs-on: ${{ matrix.platform }}
     steps:

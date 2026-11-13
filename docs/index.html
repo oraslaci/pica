@@ -143,6 +143,14 @@
           "@type": "Answer",
           "text": "Pica is built with good intentions and is currently in active Beta. It is provided completely free on an AS-IS basis without warranties of any kind. Authors and contributors assume zero liability or responsibility for any data loss, bugs, or system issues. Users must always maintain independent backups of their photos."
         }
+      },
+      {
+        "@type": "Question",
+        "name": "Why does Windows Defender SmartScreen warn that Pica is from an unknown publisher?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Microsoft Defender SmartScreen flags downloads that lack an expensive commercial code-signing certificate or haven't yet built reputation across millions of downloads. Pica is 100% offline, free, and open-source. To install, click 'More info' ('Flere oplysninger') and select 'Run anyway' ('Kør alligevel')."
+        }
       }
     ]
   }
@@ -724,21 +732,33 @@
               <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.799"/>
             </svg>
             <h3 class="download-card-title">Pica for Windows</h3>
-            <p class="download-card-subtitle">Works on Windows 11 &amp; Windows 10 (64-bit and ARM64)</p>
+            <p class="download-card-subtitle">Works on Windows 11 &amp; Windows 10 (64-bit)</p>
             <div class="download-btn-row">
-              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-primary">
+              <a href="https://github.com/oraslaci/pica/releases/latest" id="win-download-btn" class="btn-primary">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                 </svg>
-                <span>Download Windows Installer (.msi)</span>
-              </a>
-              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-secondary">
-                <span>Download Setup (.exe)</span>
+                <span>Download for Windows (.exe)</span>
               </a>
             </div>
             <p class="download-note">
               ✓ 100% Free &amp; Virus-Free • Verified Release • Automatic Safe Updates
             </p>
+
+            <!-- SmartScreen Guidance Notice -->
+            <div class="smartscreen-tip">
+              <div class="smartscreen-tip-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span>First time installing on Windows?</span>
+              </div>
+              <p class="smartscreen-tip-body">
+                If Microsoft Defender SmartScreen displays <em>"Windows protected your PC / Ukendt udgiver"</em>: click <strong>"More info" (Flere oplysninger)</strong> &rarr; <strong>"Run anyway" (Kør alligevel)</strong>. Pica is 100% offline, free, and open-source — as a young independent project, we haven't purchased an expensive corporate signing certificate yet.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -751,7 +771,7 @@
             <h3 class="download-card-title">Pica for macOS</h3>
             <p class="download-card-subtitle">Optimized for Apple Silicon (M1 / M2 / M3 / M4) &amp; Intel Macs</p>
             <div class="download-btn-row">
-              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-primary">
+              <a href="https://github.com/oraslaci/pica/releases/latest" id="mac-download-btn" class="btn-primary">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                 </svg>
@@ -773,16 +793,16 @@
             <h3 class="download-card-title">Pica for Linux</h3>
             <p class="download-card-subtitle">Ubuntu, Debian, Fedora, Arch, and all modern distributions</p>
             <div class="download-btn-row">
-              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-primary">
+              <a href="https://github.com/oraslaci/pica/releases/latest" id="linux-appimage-btn" class="btn-primary">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                 </svg>
                 <span>Download .AppImage</span>
               </a>
-              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-secondary">
+              <a href="https://github.com/oraslaci/pica/releases/latest" id="linux-deb-btn" class="btn-secondary">
                 <span>Download .deb (Debian/Ubuntu)</span>
               </a>
-              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-secondary">
+              <a href="https://github.com/oraslaci/pica/releases/latest" id="linux-rpm-btn" class="btn-secondary">
                 <span>Download .rpm (Fedora)</span>
               </a>
             </div>
@@ -959,10 +979,27 @@
                 Pica is cross-platform and runs natively on:
               </p>
               <ul>
-                <li><strong>Windows:</strong> Windows 10 and Windows 11 (64-bit and ARM64)</li>
+                <li><strong>Windows:</strong> Windows 10 and Windows 11 (64-bit)</li>
                 <li><strong>macOS:</strong> Apple Silicon (M1/M2/M3/M4) and Intel Macs (macOS 11+)</li>
                 <li><strong>Linux:</strong> Ubuntu, Debian, Fedora, Arch, and modern distributions via AppImage, .deb, and .rpm</li>
               </ul>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>Why does Windows Defender SmartScreen warn that Pica is from an "Unknown publisher"?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                This is standard Windows behavior for newly released, independent open-source software. Microsoft Defender SmartScreen displays <em>"Windows protected your PC / Ukendt udgiver"</em> on apps that haven't purchased an expensive commercial certificate or accumulated millions of downloads yet.
+              </p>
+              <p>
+                To launch the installer, simply click <strong>"More info" (Flere oplysninger)</strong>, and then click <strong>"Run anyway" (Kør alligevel)</strong>. Pica is 100% offline, free, open-source, and never connects to the internet or collects your data.
+              </p>
             </div>
           </details>
         </div>

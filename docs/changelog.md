@@ -6,6 +6,15 @@
 
 ## [Unreleased] — 2026-11-13
 
+### 🪟 Windows Binary Streamlining & SmartScreen Guidance
+- **Streamlined Windows Release Artifacts (`.github/workflows/release.yml`):**
+  - Configured Windows builds to exclusively produce standard NSIS setup installers (`--bundles nsis` -> `pica_<version>_x64-setup.exe`), eliminating the redundant `.msi` package that confused end-users.
+  - Removed Windows ARM64 build target to keep release assets clutter-free with a single, unambiguous installer for all 64-bit Intel & AMD Windows PCs (which modern ARM devices also run via emulation).
+- **Streamlined Website Downloads & Dynamic Asset Resolution (`docs/index.html`, `docs/app.js`, `docs/style.css`):**
+  - Simplified the Windows download card to a single primary "Download for Windows (.exe)" call-to-action.
+  - Added dynamic release asset resolution via GitHub API (`fetchLatestReleaseAssets`) to automatically route buttons to direct 1-click binary downloads instead of dumping users into the raw GitHub release asset list.
+  - Added clear SmartScreen warning guidance callouts and FAQ entries ("More info" -> "Run anyway") explaining why Windows Defender flags new open-source software and reassuring users about Pica's offline safety.
+
 ### 🌐 Official GitHub Pages Website & Search Engine Optimization
 - **Beta Notice & Zero Liability Disclaimer:**
   - Added clear, prominent disclaimers in the download section, FAQ, and footer highlighting that Pica is an active Beta built with good intentions, provided strictly on an "AS-IS" basis with zero liability or warranties.

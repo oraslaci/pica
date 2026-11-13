@@ -181,4 +181,55 @@ function initOsDetectionAndTabs() {
       panel.classList.toggle('active', isTarget);
     });
   }
+
+  // Fetch real release assets from GitHub API to provide 1-click direct downloads
+  fetchLatestReleaseAssets(detectedOs);
+}
+
+/**
+ * Dynamic GitHub Release Asset Resolver
+ * Inspects latest release assets and wires download buttons to direct binary download URLs.
+ */
+async function fetchLatestReleaseAssets(detectedOs) {
+  try {
+    const res = await fetch('https://api.github.com/repos/oraslaci/pica/releases/latest');
+    if (!res.ok) return;
+    const data = await res.json();
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+
+    // Find direct binaries matching each platform
+    const winExe = assets.find(a => a.name.endsWith('.exe') && (a.name.includes('x64') || a.name.includes('setup')));
+    const macDmg = assets.find(a => a.name.endsWith('.dmg'));
+    const linuxAppImage = assets.find(a => a.name.endsWith('.AppImage'));
+    const linuxDeb = assets.find(a => a.name.endsWith('.deb') && (a.name.includes('amd64') || a.name.includes('x86_64')));
+    const linuxRpm = assets.find(a => a.name.endsWith('.rpm') && (a.name.includes('x86_64')));
+
+    // Update Windows primary button
+    const winBtn = document.querySelector('#win-download-btn');
+    if (winBtn && winExe) {
+      winBtn.href = winExe.browser_download_url;
+    }
+
+    // Update macOS button
+    const macBtn = document.querySelector('#mac-download-btn');
+    if (macBtn && macDmg) {
+      macBtn.href = macDmg.browser_download_url;
+    }
+
+    // Update Linux buttons
+    const linuxAppImageBtn = document.querySelector('#linux-appimage-btn');
+    if (linuxAppImageBtn && linuxAppImage) {
+      linuxAppImageBtn.href = linuxAppImage.browser_download_url;
+    }
+    const linuxDebBtn = document.querySelector('#linux-deb-btn');
+    if (linuxDebBtn && linuxDeb) {
+      linuxDebBtn.href = linuxDeb.browser_download_url;
+    }
+    const linuxRpmBtn = document.querySelector('#linux-rpm-btn');
+    if (linuxRpmBtn && linuxRpm) {
+      linuxRpmBtn.href = linuxRpm.browser_download_url;
+    }
+  } catch (err) {
+    // Graceful fallback to https://github.com/oraslaci/pica/releases/latest
+  }
 }
