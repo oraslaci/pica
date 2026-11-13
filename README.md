@@ -3,6 +3,9 @@
   <h1>Pica</h1>
   <p><strong>A blazing-fast, 100% offline desktop photo manager and non-destructive editor.</strong></p>
   <p><em>Inspired by the legendary Google Picasa 3.9 — rebuilt from scratch with Rust (Tauri v2) and Svelte 5.</em></p>
+  <p>
+    <a href="https://oraslaci.github.io/pica/"><strong>🌐 Website &amp; Downloads (oraslaci.github.io/pica)</strong></a>
+  </p>
 
   <p>
     <a href="https://github.com/oraslaci/pica/releases"><img src="https://img.shields.io/github/v/release/oraslaci/pica?color=7e14ff&label=latest%20release&logo=github" alt="Latest Release"></a>

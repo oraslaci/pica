@@ -4,6 +4,25 @@
 
 ---
 
+## [Unreleased] — 2026-11-13
+
+### 🌐 Official GitHub Pages Website & Search Engine Optimization
+- **Non-Technical Landing Page (`docs/index.html`, `docs/style.css`, `docs/app.js`):**
+  - Designed an accessible, user-friendly landing page tailored for everyday non-technical users looking for a fast, private offline desktop photo manager and Google Picasa alternative.
+  - Highlights core benefits in plain English: 100% offline & zero subscriptions, instant launch, folder-based organization, safe non-destructive edits with automatic backups, and local CPU face recognition.
+  - Interactive Desktop UI showcase mockup rendering Pica's darkroom interface, face clustering pills, 120 FPS photo grid, and floating glass HUD dock.
+  - Interactive before/after photo enhancement slider comparing unedited photos to 1-click "I'm Feeling Lucky" + "Auto-Straighten" fixes.
+  - Operating system auto-detection and download cards with direct links for Windows (.msi / setup.exe), macOS Apple Silicon & Intel (.dmg), and Linux (.AppImage, .deb, .rpm).
+- **SEO & Google Search Engine Optimization:**
+  - Semantic HTML5 structure with clear heading hierarchy and descriptive anchor links.
+  - Complete Schema.org JSON-LD structured data for `SoftwareApplication` and `FAQPage` rich snippets.
+  - Search engine meta tags, canonical URL (`https://oraslaci.github.io/pica/`), OpenGraph banner (`og-image.png`), and Twitter card metadata.
+  - Crawl configuration with `docs/robots.txt`, `docs/sitemap.xml`, and `docs/.nojekyll`.
+- **Automated Deployment Workflow (`.github/workflows/pages.yml`):**
+  - Added GitHub Actions workflow deploying the `docs/` site directly to GitHub Pages on pushes to `main`.
+
+---
+
 ## [0.2.2] — 2026-10-29
 
 ### 🚀 Built-in GitHub Update Checker & In-Place Self-Updating ([ADR 006](decisions/006-builtin-github-update-checker.md))

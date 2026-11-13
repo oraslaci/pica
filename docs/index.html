@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Primary SEO Meta Tags -->
+  <title>Pica — Fast, Free &amp; Private Offline Desktop Photo Manager (Google Picasa Alternative)</title>
+  <meta name="title" content="Pica — Fast, Free &amp; Private Offline Desktop Photo Manager (Google Picasa Alternative)">
+  <meta name="description" content="Looking for a fast, free Google Picasa alternative? Pica is a 100% offline desktop photo manager for Windows, Mac &amp; Linux. Organize, edit, and find faces privately with no subscriptions.">
+  <meta name="keywords" content="photo manager, offline photo organizer, google picasa alternative, desktop photo gallery, face recognition photo app, private photo library, fast photo viewer, free photo management software, photo editor for pc, picasa replacement, local photo library, windows photo manager, mac photo manager, linux photo manager">
+  <meta name="author" content="László Órás">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <link rel="canonical" href="https://oraslaci.github.io/pica/">
+
+  <!-- Favicon & Icons -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="apple-touch-icon" href="assets/logo.png">
+
+  <!-- Open Graph / Facebook / LinkedIn -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://oraslaci.github.io/pica/">
+  <meta property="og:title" content="Pica — Fast, Free &amp; Private Offline Desktop Photo Manager">
+  <meta property="og:description" content="100% offline desktop photo manager and editor. Fast, private, face recognition, zero subscriptions. Inspired by Google Picasa. Available for Windows, Mac &amp; Linux.">
+  <meta property="og:image" content="https://oraslaci.github.io/pica/assets/og-image.png">
+  <meta property="og:site_name" content="Pica Photo Manager">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://oraslaci.github.io/pica/">
+  <meta name="twitter:title" content="Pica — Fast, Free &amp; Private Offline Photo Manager">
+  <meta name="twitter:description" content="The desktop photo organizer and editor that respects your privacy. 100% offline, zero subscriptions, local face recognition.">
+  <meta name="twitter:image" content="https://oraslaci.github.io/pica/assets/og-image.png">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Structured Data: SoftwareApplication (Schema.org JSON-LD for Google Rich Results) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Pica",
+    "alternateName": ["Pica Photo Manager", "Pica Desktop Photo Organizer"],
+    "operatingSystem": "Windows 10, Windows 11, macOS, Linux",
+    "applicationCategory": "MultimediaApplication",
+    "applicationSubCategory": "Photo Manager & Editor",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "A blazing-fast, 100% offline desktop photo manager and non-destructive editor inspired by Google Picasa. Organize, crop, enhance, and group faces privately without cloud storage limits or subscriptions.",
+    "image": "https://oraslaci.github.io/pica/assets/logo.png",
+    "screenshot": "https://oraslaci.github.io/pica/assets/og-image.png",
+    "url": "https://oraslaci.github.io/pica/",
+    "downloadUrl": "https://github.com/oraslaci/pica/releases",
+    "softwareVersion": "0.2.2",
+    "author": {
+      "@type": "Person",
+      "name": "László Órás",
+      "url": "https://github.com/oraslaci"
+    },
+    "featureList": [
+      "100% Offline & Private (Zero cloud uploads)",
+      "Instant startup and 120 FPS virtualized scrolling",
+      "Non-destructive photo editing with automatic safety backups",
+      "Offline CPU-based face detection and grouping",
+      "One-click photo fixes: I'm Feeling Lucky, Red-Eye, Straighten, Crop, Auto Color",
+      "Familiar Google Picasa folder and timeline scrubber layout",
+      "Cross-platform support for Windows, macOS, and Linux"
+    ]
+  }
+  </script>
+
+  <!-- Structured Data: FAQPage (Schema.org JSON-LD for Google Search Accordion Snippets) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is Pica a good alternative to Google Picasa?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! Pica was created specifically to bring back what millions loved about Google Picasa 3.9: instant startup, smooth scrolling through tens of thousands of photos, offline folder-based organization, 1-click quick fixes, and automatic face grouping, completely modernized with a sleek darkroom interface."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Pica upload my photos to the cloud or require an account?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Pica is 100% offline and local. It does not require an account, has zero cloud dependencies, and never transmits your photos or personal data over the internet. Your photos stay strictly on your hard drive."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will Pica move, delete, or rename my existing photo folders?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Never. Pica respects your hard drive structure. It scans your existing folders in place without copying, moving, or trapping them in a proprietary database vault."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Pica free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, Pica is completely free for personal use. There are no monthly subscriptions, no paywalls, and no advertisements."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I undo edits if I change my mind?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! All edits in Pica are non-destructive. Whenever you edit a photo, Pica automatically saves an untouched copy of your original file in a hidden safety backup folder (.pica_originals), so you can revert back to the pristine original anytime."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does offline face recognition work without the internet?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Pica embeds lightweight neural network models (YuNet and MobileFaceNet) that run directly on your computer's CPU. Face detection and grouping happen locally on your computer in seconds without sending any images to external servers."
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <!-- Accessible Skip Link -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Ambient Glow Effects -->
+  <div class="ambient-glow glow-top-left" aria-hidden="true"></div>
+  <div class="ambient-glow glow-top-right" aria-hidden="true"></div>
+  <div class="ambient-glow glow-bottom" aria-hidden="true"></div>
+
+  <!-- Header & Navigation -->
+  <header class="site-header">
+    <div class="container">
+      <div class="nav-inner">
+        <!-- Brand / Logo -->
+        <a href="#" class="brand" aria-label="Pica Home">
+          <svg viewBox="0 0 100 100" class="brand-logo" aria-hidden="true">
+            <circle cx="50" cy="50" r="48" fill="#1e293b" />
+            <path d="M50 10 A40 40 0 0 1 90 50 L50 50 Z" fill="#ef4444" />
+            <path d="M90 50 A40 40 0 0 1 78 84 L50 50 Z" fill="#f97316" />
+            <path d="M78 84 A40 40 0 0 1 32 87 L50 50 Z" fill="#eab308" />
+            <path d="M32 87 A40 40 0 0 1 12 59 L50 50 Z" fill="#22c55e" />
+            <path d="M12 59 A40 40 0 0 1 25 21 L50 50 Z" fill="#3b82f6" />
+            <path d="M25 21 A40 40 0 0 1 50 10 L50 50 Z" fill="#a855f7" />
+            <circle cx="50" cy="50" r="18" fill="#0f172a" />
+            <circle cx="50" cy="50" r="14" fill="#38bdf8" opacity="0.8" />
+          </svg>
+          <span class="brand-text">Pica</span>
+          <span class="brand-tag">100% Offline</span>
+        </a>
+
+        <!-- Desktop Navigation Links -->
+        <nav class="main-nav" aria-label="Main Navigation">
+          <a href="#features" class="nav-link">Features</a>
+          <a href="#comparison" class="nav-link">Why Pica</a>
+          <a href="#how-it-works" class="nav-link">How It Works</a>
+          <a href="#faq" class="nav-link">FAQ</a>
+          <a href="#download" class="nav-link">Download</a>
+        </nav>
+
+        <!-- Right CTA Buttons -->
+        <div class="nav-actions">
+          <a href="https://github.com/oraslaci/pica" target="_blank" rel="noopener noreferrer" class="nav-btn-github" aria-label="GitHub Repository">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            <span>GitHub</span>
+          </a>
+          <a href="#download" class="nav-btn-download">Get Pica Free</a>
+          <button type="button" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <!-- ======================================================================
+         Hero Section
+         ====================================================================== -->
+    <section class="hero-section" aria-labelledby="hero-heading">
+      <div class="container">
+        <div class="hero-badge">
+          <span class="hero-badge-sparkle" aria-hidden="true">✨</span>
+          <span>The Google Picasa Alternative You've Been Waiting For</span>
+        </div>
+
+        <h1 id="hero-heading" class="hero-title">
+          The <span class="title-gradient">Fast, Free &amp; Private</span> Offline Photo Manager
+        </h1>
+
+        <p class="hero-subtitle">
+          Remember when photo apps opened in a split second, organized your photos into simple folders on your computer, and didn't cost a monthly cloud subscription? Meet <strong>Pica</strong> — rebuilt for modern desktops.
+        </p>
+
+        <div class="hero-cta-group">
+          <a href="#download" id="hero-download-btn" class="btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            <span>Download for Windows (Free)</span>
+          </a>
+          <a href="#features" class="btn-secondary">
+            <span>See What Makes It Special</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+
+        <div class="hero-meta">
+          <span class="hero-meta-item">
+            <span class="icon-check" aria-hidden="true">✓</span> 100% Offline &amp; Private
+          </span>
+          <span class="hero-meta-item">
+            <span class="icon-check" aria-hidden="true">✓</span> Zero Monthly Fees
+          </span>
+          <span class="hero-meta-item">
+            <span class="icon-check" aria-hidden="true">✓</span> Windows, Mac &amp; Linux
+          </span>
+          <span class="hero-meta-item">
+            <span class="icon-check" aria-hidden="true">✓</span> Photos Stay in Your Existing Folders
+          </span>
+        </div>
+
+        <!-- ====================================================================
+             Hero App Showcase Mockup (Darkroom Experience)
+             ==================================================================== -->
+        <div class="app-showcase-wrapper">
+          <div class="app-window-frame">
+            <!-- Mockup Title Bar -->
+            <div class="window-titlebar">
+              <div class="window-controls">
+                <span class="window-dot dot-red"></span>
+                <span class="window-dot dot-yellow"></span>
+                <span class="window-dot dot-green"></span>
+              </div>
+              <div class="window-breadcrumb">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span>Pictures &gt; Family Vacation 2024</span>
+              </div>
+              <div class="window-search">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <span>Search by person, date...</span>
+              </div>
+            </div>
+
+            <!-- Mockup App Body -->
+            <div class="window-body">
+              <!-- Left Sidebar -->
+              <aside class="mockup-sidebar">
+                <div>
+                  <div class="sidebar-group-title">People (Local AI)</div>
+                  <div class="people-faces-row">
+                    <div class="face-avatar-pill face-1" title="Mom (48 photos)">M</div>
+                    <div class="face-avatar-pill face-2" title="Lucas (82 photos)">L</div>
+                    <div class="face-avatar-pill face-3" title="Grandpa (31 photos)">G</div>
+                    <div class="face-avatar-pill face-4" title="Emma (65 photos)">E</div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="sidebar-group-title">Collections</div>
+                  <div class="sidebar-item active">
+                    <div class="item-left">
+                      <span>📁</span>
+                      <span>Family Vacation 2024</span>
+                    </div>
+                    <span class="item-badge">426</span>
+                  </div>
+                  <div class="sidebar-item">
+                    <div class="item-left">
+                      <span>⭐</span>
+                      <span>Starred Favorites</span>
+                    </div>
+                    <span class="item-badge">64</span>
+                  </div>
+                  <div class="sidebar-item">
+                    <div class="item-left">
+                      <span>🌲</span>
+                      <span>National Parks Trip</span>
+                    </div>
+                    <span class="item-badge">1,210</span>
+                  </div>
+                  <div class="sidebar-item">
+                    <div class="item-left">
+                      <span>🎂</span>
+                      <span>Birthdays &amp; Parties</span>
+                    </div>
+                    <span class="item-badge">318</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="sidebar-group-title">Fast Scrubber</div>
+                  <div class="sidebar-item">
+                    <div class="item-left"><span>📅 2024</span></div>
+                    <span class="item-badge">2,410</span>
+                  </div>
+                  <div class="sidebar-item">
+                    <div class="item-left"><span>📅 2023</span></div>
+                    <span class="item-badge">3,890</span>
+                  </div>
+                  <div class="sidebar-item">
+                    <div class="item-left"><span>📅 2022</span></div>
+                    <span class="item-badge">4,120</span>
+                  </div>
+                </div>
+              </aside>
+
+              <!-- Main Grid Canvas -->
+              <div class="mockup-grid-canvas">
+                <div class="album-header-bar">
+                  <div class="album-title">
+                    <span>Summer Beach Roadtrip</span>
+                    <span class="album-meta-pill">July 18 – 24, 2024 • 426 Photos</span>
+                  </div>
+                  <div class="album-meta-pill">⚡ 120 FPS Native Grid</div>
+                </div>
+
+                <!-- 4 Photo Cards Grid -->
+                <div class="grid-cards">
+                  <div class="photo-card photo-1">
+                    <div class="face-detection-box">
+                      <span class="face-tag-label">Lucas (98%)</span>
+                    </div>
+                    <div class="photo-card-info">
+                      <span>Sunset Pier</span>
+                      <span class="star-icon">★</span>
+                    </div>
+                  </div>
+                  <div class="photo-card photo-2">
+                    <div class="photo-card-info">
+                      <span>Golden Hour Dunes</span>
+                      <span class="star-icon">★</span>
+                    </div>
+                  </div>
+                  <div class="photo-card photo-3">
+                    <div class="photo-card-info">
+                      <span>Mountain Hike</span>
+                      <span>July 21</span>
+                    </div>
+                  </div>
+                  <div class="photo-card photo-4">
+                    <div class="photo-card-info">
+                      <span>Campfire Night</span>
+                      <span>July 22</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Floating Glass HUD Pill (Picasa style) -->
+                <div class="mockup-floating-dock">
+                  <button type="button" class="dock-btn" title="Zoom Out">🔍−</button>
+                  <button type="button" class="dock-btn" title="Fit to Screen">Fit</button>
+                  <button type="button" class="dock-btn" title="Zoom In">🔍+</button>
+                  <div class="dock-divider"></div>
+                  <button type="button" class="dock-btn" title="Rotate Left">⟲ 90°</button>
+                  <button type="button" class="dock-btn" title="Rotate Right">⟳ 90°</button>
+                  <div class="dock-divider"></div>
+                  <button type="button" class="dock-btn" title="Split Screen Comparison">Before / After</button>
+                  <button type="button" class="dock-btn" title="I'm Feeling Lucky">✨ Auto-Fix</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         Comparison / Why Pica vs Cloud Apps
+         ====================================================================== -->
+    <section id="comparison" class="section" aria-labelledby="comp-heading">
+      <div class="container">
+        <header class="section-header">
+          <span class="section-tag">Tired of Cloud Lock-In?</span>
+          <h2 id="comp-heading" class="section-title">Why Everyday People Are Switching to Pica</h2>
+          <p class="section-desc">
+            You don't need a monthly subscription or an internet connection to enjoy your own family memories.
+          </p>
+        </header>
+
+        <div class="comparison-grid">
+          <!-- The Old Cloud Traps -->
+          <div class="comparison-card card-cloud">
+            <div class="comp-header">
+              <div class="comp-icon icon-cloud-bad" aria-hidden="true">☁️</div>
+              <h3 class="comp-title">Modern Cloud Photo Apps</h3>
+            </div>
+            <ul class="comp-list">
+              <li class="comp-item comp-item-bad">
+                <span class="comp-bullet bullet-bad">✕</span>
+                <span><strong>Monthly Subscriptions:</strong> Costs $36 to $120+ every year just to keep your photos stored.</span>
+              </li>
+              <li class="comp-item comp-item-bad">
+                <span class="comp-bullet bullet-bad">✕</span>
+                <span><strong>Privacy Concerns:</strong> Your private family photos are uploaded to big tech servers and scanned for advertising.</span>
+              </li>
+              <li class="comp-item comp-item-bad">
+                <span class="comp-bullet bullet-bad">✕</span>
+                <span><strong>Sluggish &amp; Glitchy:</strong> Needs fast Wi-Fi to load albums; scrolling large collections stutters or shows spinning wheels.</span>
+              </li>
+              <li class="comp-item comp-item-bad">
+                <span class="comp-bullet bullet-bad">✕</span>
+                <span><strong>Folder Lock-In:</strong> Traps photos in proprietary libraries, making it difficult to organize your own files on your disk.</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Pica Solution -->
+          <div class="comparison-card card-pica">
+            <span class="pica-badge-winner">The Pica Way</span>
+            <div class="comp-header">
+              <div class="comp-icon icon-pica-good" aria-hidden="true">⚡</div>
+              <h3 class="comp-title">Pica Desktop Photo Manager</h3>
+            </div>
+            <ul class="comp-list">
+              <li class="comp-item comp-item-good">
+                <span class="comp-bullet bullet-good">✓</span>
+                <span><strong>100% Free Forever:</strong> Zero subscriptions, zero hidden fees, zero ads. Free for personal use.</span>
+              </li>
+              <li class="comp-item comp-item-good">
+                <span class="comp-bullet bullet-good">✓</span>
+                <span><strong>Strictly 100% Offline:</strong> Your pictures never leave your computer. No cloud, no tracking, complete peace of mind.</span>
+              </li>
+              <li class="comp-item comp-item-good">
+                <span class="comp-bullet bullet-good">✓</span>
+                <span><strong>Blazing Native Speed:</strong> Smooth 120 FPS scrolling through 50,000+ photos instantly, even on older computers.</span>
+              </li>
+              <li class="comp-item comp-item-good">
+                <span class="comp-bullet bullet-good">✓</span>
+                <span><strong>Your Folders, Your Rules:</strong> Works directly with your existing folders on Windows, Mac, or external hard drives.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         Features Grid Section
+         ====================================================================== -->
+    <section id="features" class="section" aria-labelledby="features-heading">
+      <div class="container">
+        <header class="section-header">
+          <span class="section-tag">Packed with Features You'll Love</span>
+          <h2 id="features-heading" class="section-title">Everything You Need to Manage &amp; Relive Your Photos</h2>
+          <p class="section-desc">
+            Built from scratch with modern technology to deliver the speed, simplicity, and delight of the legendary Google Picasa.
+          </p>
+        </header>
+
+        <div class="features-grid">
+          <!-- Feature 1 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper icon-speed" aria-hidden="true">⚡</div>
+            <h3 class="feature-title">Lightning-Fast Scrolling</h3>
+            <p class="feature-text">
+              Have 10,000 or 50,000 photos? Pica opens instantly and scrolls at buttery smooth 120 FPS. No spinning beachballs, no waiting for thumbnails to load.
+            </p>
+          </article>
+
+          <!-- Feature 2 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper icon-privacy" aria-hidden="true">🛡️</div>
+            <h3 class="feature-title">100% Private &amp; Offline</h3>
+            <p class="feature-text">
+              Your photos belong to you. Pica requires no internet connection, never uploads your photos to any remote server, and requires zero user accounts.
+            </p>
+          </article>
+
+          <!-- Feature 3 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper icon-face" aria-hidden="true">👥</div>
+            <h3 class="feature-title">Offline Face Recognition</h3>
+            <p class="feature-text">
+              Find every picture of your children, grandparents, or friends. Pica uses built-in AI running entirely on your computer's processor to group faces automatically.
+            </p>
+          </article>
+
+          <!-- Feature 4 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper icon-edit" aria-hidden="true">✨</div>
+            <h3 class="feature-title">1-Click Magic Fixes</h3>
+            <p class="feature-text">
+              Fix photos in seconds with Picasa's classic tools: "I'm Feeling Lucky" auto-contrast, instant Red-Eye removal, Crop to print sizes (4x6, 5x7, 8x10), and Straighten horizons.
+            </p>
+          </article>
+
+          <!-- Feature 5 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper icon-safe" aria-hidden="true">🔄</div>
+            <h3 class="feature-title">Worry-Free Non-Destructive Edits</h3>
+            <p class="feature-text">
+              Never worry about ruining an original photo. Pica saves an untouched copy of your original in a safe backup folder. Undo or redo your changes anytime.
+            </p>
+          </article>
+
+          <!-- Feature 6 -->
+          <article class="feature-card">
+            <div class="feature-icon-wrapper icon-folder" aria-hidden="true">📂</div>
+            <h3 class="feature-title">Respects Your Existing Folders</h3>
+            <p class="feature-text">
+              Pica scans your existing folders in place. No import queues, no duplicate files wasting storage, and no proprietary database locking you in.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         Interactive Before / After Showcase
+         ====================================================================== -->
+    <section class="section" aria-labelledby="slider-heading">
+      <div class="container">
+        <header class="section-header">
+          <span class="section-tag">See the Magic in Action</span>
+          <h2 id="slider-heading" class="section-title">1-Click Fixes That Make Your Photos Pop</h2>
+          <p class="section-desc">
+            Drag the slider below to see how Pica's <em>"I'm Feeling Lucky"</em> and <em>"Auto-Straighten"</em> tools instantly bring dark, crooked photos to life.
+          </p>
+        </header>
+
+        <div class="comparison-slider-container">
+          <div class="slider-wrapper" aria-label="Interactive before and after comparison">
+            <!-- Unedited Before -->
+            <div class="slider-image-before"></div>
+            <!-- Edited After -->
+            <div class="slider-image-after"></div>
+
+            <!-- Badges -->
+            <span class="slider-badge badge-before">Original (Dark &amp; Crooked)</span>
+            <span class="slider-badge badge-after">Pica 1-Click Fix (Bright &amp; Straight)</span>
+
+            <!-- Draggable Divider Handle -->
+            <div class="slider-handle">
+              <div class="handle-pill">⇄</div>
+            </div>
+          </div>
+          <div class="slider-caption">
+            <span><strong>Tip:</strong> Drag the slider left or right with your mouse or finger, or use the arrow keys.</span>
+            <span>✨ Auto-Balanced Colors • Red-Eye Healed • Level Horizon</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         How It Works (3 Steps for Non-Technical Users)
+         ====================================================================== -->
+    <section id="how-it-works" class="section" aria-labelledby="steps-heading">
+      <div class="container">
+        <header class="section-header">
+          <span class="section-tag">Simple &amp; Effortless</span>
+          <h2 id="steps-heading" class="section-title">How Pica Works in 3 Easy Steps</h2>
+          <p class="section-desc">
+            You don't need any technical skills. Pica is ready to use in less than 30 seconds.
+          </p>
+        </header>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number" aria-hidden="true">1</div>
+            <h3 class="step-title">Download &amp; Open</h3>
+            <p class="step-desc">
+              Download the installer for Windows, Mac, or Linux below. No sign-up, no credit card, and no account creation required. Just double-click to install.
+            </p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number" aria-hidden="true">2</div>
+            <h3 class="step-title">Choose Your Folders</h3>
+            <p class="step-desc">
+              Select your existing "Pictures" folder, external hard drive, or USB flash drive. Pica scans your photos instantly without moving or renaming your files.
+            </p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number" aria-hidden="true">3</div>
+            <h3 class="step-title">Enjoy &amp; Relive</h3>
+            <p class="step-desc">
+              Scroll through years of memories at lightning speed, find family members with automatic face grouping, and make quick, beautiful photo edits!
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         Download Section (OS Auto-Detection & Direct Links)
+         ====================================================================== -->
+    <section id="download" class="section download-section" aria-labelledby="download-heading">
+      <div class="container">
+        <header class="section-header">
+          <span class="section-tag">Free &amp; Open Source</span>
+          <h2 id="download-heading" class="section-title">Download Pica for Your Computer</h2>
+          <p class="section-desc">
+            Choose your operating system below to download the latest release of Pica.
+          </p>
+        </header>
+
+        <!-- OS Selection Tabs -->
+        <div class="download-tabs" role="tablist" aria-label="Operating System Selection">
+          <button type="button" class="tab-btn active" data-os="windows" role="tab" aria-selected="true" id="tab-win">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.799"/>
+            </svg>
+            <span>Windows</span>
+          </button>
+          <button type="button" class="tab-btn" data-os="macos" role="tab" aria-selected="false" id="tab-mac">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.34-.56.64-1.06 1.7-0.92 2.74 1.01.08 2.04-.49 2.65-1.23"/>
+            </svg>
+            <span>macOS</span>
+          </button>
+          <button type="button" class="tab-btn" data-os="linux" role="tab" aria-selected="false" id="tab-linux">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12.002 0c-3.1 0-5.617 2.517-5.617 5.617 0 1.23.414 2.373 1.109 3.297-.473.57-1.127 1.47-1.127 2.66 0 1.93 1.137 3.524 2.687 4.102-.312 1.078-.574 2.32-.574 3.734 0 1.27.426 2.398 1.187 3.195-2.023.332-4.043 1.39-4.043 3.395 0 2.012 3.816 2.012 6.378 2.012 2.563 0 6.38 0 6.38-2.012 0-2.004-2.02-3.063-4.043-3.395.761-.797 1.187-1.926 1.187-3.195 0-1.414-.262-2.656-.574-3.734 1.55-.578 2.687-2.172 2.687-4.102 0-1.19-.654-2.09-1.127-2.66.695-.924 1.109-2.066 1.109-3.296C17.62 2.517 15.102 0 12.002 0z"/>
+            </svg>
+            <span>Linux</span>
+          </button>
+        </div>
+
+        <!-- Windows Panel -->
+        <div class="os-download-panel active" data-os-panel="windows" role="tabpanel" aria-labelledby="tab-win">
+          <div class="download-card-primary">
+            <svg class="os-logo-large" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.799"/>
+            </svg>
+            <h3 class="download-card-title">Pica for Windows</h3>
+            <p class="download-card-subtitle">Works on Windows 11 &amp; Windows 10 (64-bit and ARM64)</p>
+            <div class="download-btn-row">
+              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                <span>Download Windows Installer (.msi)</span>
+              </a>
+              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-secondary">
+                <span>Download Setup (.exe)</span>
+              </a>
+            </div>
+            <p class="download-note">
+              ✓ 100% Free &amp; Virus-Free • Verified Release • Automatic Safe Updates
+            </p>
+          </div>
+        </div>
+
+        <!-- macOS Panel -->
+        <div class="os-download-panel" data-os-panel="macos" role="tabpanel" aria-labelledby="tab-mac">
+          <div class="download-card-primary">
+            <svg class="os-logo-large" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.34-.56.64-1.06 1.7-0.92 2.74 1.01.08 2.04-.49 2.65-1.23"/>
+            </svg>
+            <h3 class="download-card-title">Pica for macOS</h3>
+            <p class="download-card-subtitle">Optimized for Apple Silicon (M1 / M2 / M3 / M4) &amp; Intel Macs</p>
+            <div class="download-btn-row">
+              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                <span>Download Mac Disk Image (.dmg)</span>
+              </a>
+            </div>
+            <p class="download-note">
+              ✓ Requires macOS 11 Big Sur or newer • Drag to Applications and open
+            </p>
+          </div>
+        </div>
+
+        <!-- Linux Panel -->
+        <div class="os-download-panel" data-os-panel="linux" role="tabpanel" aria-labelledby="tab-linux">
+          <div class="download-card-primary">
+            <svg class="os-logo-large" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12.002 0c-3.1 0-5.617 2.517-5.617 5.617 0 1.23.414 2.373 1.109 3.297-.473.57-1.127 1.47-1.127 2.66 0 1.93 1.137 3.524 2.687 4.102-.312 1.078-.574 2.32-.574 3.734 0 1.27.426 2.398 1.187 3.195-2.023.332-4.043 1.39-4.043 3.395 0 2.012 3.816 2.012 6.378 2.012 2.563 0 6.38 0 6.38-2.012 0-2.004-2.02-3.063-4.043-3.395.761-.797 1.187-1.926 1.187-3.195 0-1.414-.262-2.656-.574-3.734 1.55-.578 2.687-2.172 2.687-4.102 0-1.19-.654-2.09-1.127-2.66.695-.924 1.109-2.066 1.109-3.296C17.62 2.517 15.102 0 12.002 0z"/>
+            </svg>
+            <h3 class="download-card-title">Pica for Linux</h3>
+            <p class="download-card-subtitle">Ubuntu, Debian, Fedora, Arch, and all modern distributions</p>
+            <div class="download-btn-row">
+              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                <span>Download .AppImage</span>
+              </a>
+              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-secondary">
+                <span>Download .deb (Debian/Ubuntu)</span>
+              </a>
+              <a href="https://github.com/oraslaci/pica/releases/latest" class="btn-secondary">
+                <span>Download .rpm (Fedora)</span>
+              </a>
+            </div>
+            <p class="download-note">
+              ✓ x86_64 and aarch64 (ARM64) builds available
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         Frequently Asked Questions (FAQ) Section
+         ====================================================================== -->
+    <section id="faq" class="section" aria-labelledby="faq-heading">
+      <div class="container">
+        <header class="section-header">
+          <span class="section-tag">Got Questions?</span>
+          <h2 id="faq-heading" class="section-title">Frequently Asked Questions</h2>
+          <p class="section-desc">
+            Everything you need to know about Pica, privacy, and how it handles your photos.
+          </p>
+        </header>
+
+        <!-- Native Accordion with <details name="faq"> -->
+        <div class="faq-list">
+          <details class="faq-item" name="faq" open>
+            <summary class="faq-question">
+              <span>Is Pica really like Google Picasa?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                <strong>Yes!</strong> Pica was born out of love for the original Google Picasa 3.9 after Google retired it in 2016.
+              </p>
+              <p>
+                It recreates the things people missed most: instant startup, smooth 120 FPS scrolling through tens of thousands of photos, offline folder-based organization, 1-click quick fixes ("I'm Feeling Lucky", Red-Eye, Straighten), and automatic face grouping — modernized with a clean darkroom design.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>Do I have to upload my photos to the cloud?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                <strong>No. Never.</strong> Pica is strictly 100% offline. It has zero cloud storage, zero tracking, and zero telemetry. You do not need to create an account, log in, or give your email address. Every single photo stays on your computer hard drive.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>Will Pica move, delete, or rename my existing photo folders?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                <strong>Never.</strong> Unlike some modern apps that import your photos into a proprietary library or change your folder names, Pica scans your existing folders in place. Your files stay exactly where you put them on your PC or external drives.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>How much does Pica cost? Are there hidden fees?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                Pica is <strong>100% free for personal use</strong>. There are no monthly subscriptions, no locked features, and no banner ads.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>Can I undo my edits if I don't like how a photo turned out?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                <strong>Yes, absolutely.</strong> All edits in Pica are non-destructive. Whenever you crop, straighten, or enhance a photo, Pica automatically saves an untouched copy of your original file into a hidden <code>.pica_originals</code> safety folder. You can revert back to your original photo anytime, even months later.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>How does face recognition work without an internet connection?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                Pica includes small, fast artificial intelligence models built directly inside the application. When you open a folder, your computer's own processor detects and groups similar faces locally in seconds. No photos or face embeddings ever leave your device.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>What operating systems are supported?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                Pica is cross-platform and runs natively on:
+              </p>
+              <ul>
+                <li><strong>Windows:</strong> Windows 10 and Windows 11 (64-bit and ARM64)</li>
+                <li><strong>macOS:</strong> Apple Silicon (M1/M2/M3/M4) and Intel Macs (macOS 11+)</li>
+                <li><strong>Linux:</strong> Ubuntu, Debian, Fedora, Arch, and modern distributions via AppImage, .deb, and .rpm</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================================================
+       Footer
+       ======================================================================== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <!-- Brand column -->
+        <div>
+          <a href="#" class="brand" aria-label="Pica Home">
+            <svg viewBox="0 0 100 100" class="brand-logo" aria-hidden="true">
+              <circle cx="50" cy="50" r="48" fill="#1e293b" />
+              <path d="M50 10 A40 40 0 0 1 90 50 L50 50 Z" fill="#ef4444" />
+              <path d="M90 50 A40 40 0 0 1 78 84 L50 50 Z" fill="#f97316" />
+              <path d="M78 84 A40 40 0 0 1 32 87 L50 50 Z" fill="#eab308" />
+              <path d="M32 87 A40 40 0 0 1 12 59 L50 50 Z" fill="#22c55e" />
+              <path d="M12 59 A40 40 0 0 1 25 21 L50 50 Z" fill="#3b82f6" />
+              <path d="M25 21 A40 40 0 0 1 50 10 L50 50 Z" fill="#a855f7" />
+              <circle cx="50" cy="50" r="18" fill="#0f172a" />
+              <circle cx="50" cy="50" r="14" fill="#38bdf8" opacity="0.8" />
+            </svg>
+            <span class="brand-text">Pica</span>
+          </a>
+          <p class="footer-brand-desc">
+            A fast, free, and 100% offline desktop photo manager and editor inspired by Google Picasa. Built for people who love their photos and value their privacy.
+          </p>
+        </div>
+
+        <!-- Navigation column -->
+        <div>
+          <h4 class="footer-col-title">Product</h4>
+          <ul class="footer-links">
+            <li><a href="#features" class="footer-link">Features</a></li>
+            <li><a href="#comparison" class="footer-link">Why Pica</a></li>
+            <li><a href="#how-it-works" class="footer-link">How It Works</a></li>
+            <li><a href="#download" class="footer-link">Download</a></li>
+            <li><a href="#faq" class="footer-link">FAQ</a></li>
+          </ul>
+        </div>
+
+        <!-- Downloads column -->
+        <div>
+          <h4 class="footer-col-title">Downloads</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/oraslaci/pica/releases/latest" class="footer-link">Windows (.msi)</a></li>
+            <li><a href="https://github.com/oraslaci/pica/releases/latest" class="footer-link">macOS (.dmg)</a></li>
+            <li><a href="https://github.com/oraslaci/pica/releases/latest" class="footer-link">Linux (.AppImage)</a></li>
+            <li><a href="https://github.com/oraslaci/pica/releases" class="footer-link">All Releases</a></li>
+          </ul>
+        </div>
+
+        <!-- Community column -->
+        <div>
+          <h4 class="footer-col-title">Community</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/oraslaci/pica" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub Repository</a></li>
+            <li><a href="https://github.com/oraslaci/pica/issues" target="_blank" rel="noopener noreferrer" class="footer-link">Report an Issue</a></li>
+            <li><a href="https://github.com/oraslaci/pica/blob/main/docs/changelog.md" target="_blank" rel="noopener noreferrer" class="footer-link">Changelog</a></li>
+            <li><a href="https://github.com/oraslaci/pica/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="footer-link">License</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- SEO Keyword Cluster for Google Indexing -->
+      <div class="footer-seo-cluster">
+        <strong>Popular Searches:</strong>
+        <a href="#features">Desktop Photo Manager</a>
+        <a href="#comparison">Google Picasa Alternative</a>
+        <a href="#features">Offline Photo Organizer</a>
+        <a href="#features">Private Face Recognition Photo App</a>
+        <a href="#download">Free Photo Viewer for Windows 11</a>
+        <a href="#download">Mac Offline Photo Gallery</a>
+        <a href="#download">Linux Photo Management Software</a>
+        <a href="#features">Non-Destructive Photo Editor</a>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2026 Pica Project. Free for non-commercial personal use.</p>
+        <p>100% Offline • Zero Telemetry • Respects Your Privacy</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Interactive Script -->
+  <script src="app.js"></script>
+</body>
+</html>
