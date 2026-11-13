@@ -7,6 +7,10 @@
 ## [Unreleased] — 2026-11-13
 
 ### 🌐 Official GitHub Pages Website & Search Engine Optimization
+- **Zero AI Inside & Honest Software Positioning:**
+  - Added dedicated "Zero AI Inside" section highlighting that Pica contains no LLMs, no chatbots, no generative AI fakes, and no cloud scraping.
+  - Transparently disclosed that Pica was developed with AI assistance (vibecoded with Gemini), but the shipped executable runs 100% compiled native Rust with zero AI bloat.
+  - Clarified that face grouping uses classic, offline CPU computer vision math without sending anything to cloud APIs.
 - **Non-Technical Landing Page (`docs/index.html`, `docs/style.css`, `docs/app.js`):**
   - Designed an accessible, user-friendly landing page tailored for everyday non-technical users looking for a fast, private offline desktop photo manager and Google Picasa alternative.
   - Highlights core benefits in plain English: 100% offline & zero subscriptions, instant launch, folder-based organization, safe non-destructive edits with automatic backups, and local CPU face recognition.

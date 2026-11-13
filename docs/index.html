@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <!-- Primary SEO Meta Tags -->
-  <title>Pica — Fast, Free &amp; Private Offline Desktop Photo Manager (Google Picasa Alternative)</title>
-  <meta name="title" content="Pica — Fast, Free &amp; Private Offline Desktop Photo Manager (Google Picasa Alternative)">
-  <meta name="description" content="Looking for a fast, free Google Picasa alternative? Pica is a 100% offline desktop photo manager for Windows, Mac &amp; Linux. Organize, edit, and find faces privately with no subscriptions.">
-  <meta name="keywords" content="photo manager, offline photo organizer, google picasa alternative, desktop photo gallery, face recognition photo app, private photo library, fast photo viewer, free photo management software, photo editor for pc, picasa replacement, local photo library, windows photo manager, mac photo manager, linux photo manager">
+  <title>Pica — Fast, Free &amp; Private Offline Desktop Photo Manager (No AI Bloat, Picasa Alternative)</title>
+  <meta name="title" content="Pica — Fast, Free &amp; Private Offline Desktop Photo Manager (No AI Bloat, Picasa Alternative)">
+  <meta name="description" content="Looking for a fast, free Google Picasa alternative with no AI bloat? Pica is a 100% offline desktop photo manager for Windows, Mac &amp; Linux. No subscriptions, no cloud, no AI chatbots.">
+  <meta name="keywords" content="photo manager without ai, offline photo organizer, google picasa alternative, desktop photo gallery, private photo library, no ai photo manager, fast photo viewer, free photo management software, photo editor for pc, picasa replacement, local photo library, windows photo manager, mac photo manager, linux photo manager">
   <meta name="author" content="László Órás">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <link rel="canonical" href="https://oraslaci.github.io/pica/">
@@ -20,8 +20,8 @@
   <!-- Open Graph / Facebook / LinkedIn -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://oraslaci.github.io/pica/">
-  <meta property="og:title" content="Pica — Fast, Free &amp; Private Offline Desktop Photo Manager">
-  <meta property="og:description" content="100% offline desktop photo manager and editor. Fast, private, face recognition, zero subscriptions. Inspired by Google Picasa. Available for Windows, Mac &amp; Linux.">
+  <meta property="og:title" content="Pica — Fast, Free &amp; Private Offline Photo Manager (No AI Bloat)">
+  <meta property="og:description" content="100% offline desktop photo manager and editor. No AI chatbots, no cloud, zero subscriptions. Inspired by Google Picasa. Available for Windows, Mac &amp; Linux.">
   <meta property="og:image" content="https://oraslaci.github.io/pica/assets/og-image.png">
   <meta property="og:site_name" content="Pica Photo Manager">
   <meta property="og:locale" content="en_US">
@@ -29,8 +29,8 @@
   <!-- Twitter / X -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://oraslaci.github.io/pica/">
-  <meta name="twitter:title" content="Pica — Fast, Free &amp; Private Offline Photo Manager">
-  <meta name="twitter:description" content="The desktop photo organizer and editor that respects your privacy. 100% offline, zero subscriptions, local face recognition.">
+  <meta name="twitter:title" content="Pica — Fast, Free &amp; Private Offline Photo Manager (No AI Bloat)">
+  <meta name="twitter:description" content="The desktop photo organizer that respects your privacy. 100% offline, zero AI chatbots, zero subscriptions.">
   <meta name="twitter:image" content="https://oraslaci.github.io/pica/assets/og-image.png">
 
   <!-- Stylesheet -->
@@ -122,10 +122,18 @@
       },
       {
         "@type": "Question",
-        "name": "How does offline face recognition work without the internet?",
+        "name": "Does Pica have AI or chatbots inside?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Pica embeds lightweight neural network models (YuNet and MobileFaceNet) that run directly on your computer's CPU. Face detection and grouping happen locally on your computer in seconds without sending any images to external servers."
+          "text": "No. There is zero AI inside the application. No LLMs, no chatbots, no generative AI fakes, and no cloud data harvesting. The app runs 100% compiled native Rust and web technology locally on your machine. Face grouping uses classic offline computer vision math right on your computer's CPU without ever connecting to the internet."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does offline face grouping work without the internet?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Pica embeds lightweight computer vision algorithms that run directly on your computer's CPU. Face detection and grouping happen locally on your computer in milliseconds without sending any images or data to external servers."
         }
       }
     ]
@@ -160,11 +168,12 @@
             <circle cx="50" cy="50" r="14" fill="#38bdf8" opacity="0.8" />
           </svg>
           <span class="brand-text">Pica</span>
-          <span class="brand-tag">100% Offline</span>
+          <span class="brand-tag">Zero AI • 100% Offline</span>
         </a>
 
         <!-- Desktop Navigation Links -->
         <nav class="main-nav" aria-label="Main Navigation">
+          <a href="#no-ai" class="nav-link">No AI Inside</a>
           <a href="#features" class="nav-link">Features</a>
           <a href="#comparison" class="nav-link">Why Pica</a>
           <a href="#how-it-works" class="nav-link">How It Works</a>
@@ -198,8 +207,8 @@
     <section class="hero-section" aria-labelledby="hero-heading">
       <div class="container">
         <div class="hero-badge">
-          <span class="hero-badge-sparkle" aria-hidden="true">✨</span>
-          <span>The Google Picasa Alternative You've Been Waiting For</span>
+          <span class="hero-badge-sparkle" aria-hidden="true">🛡️</span>
+          <span>No Cloud • No Subscriptions • Zero AI Chatbots</span>
         </div>
 
         <h1 id="hero-heading" class="hero-title">
@@ -207,7 +216,7 @@
         </h1>
 
         <p class="hero-subtitle">
-          Remember when photo apps opened in a split second, organized your photos into simple folders on your computer, and didn't cost a monthly cloud subscription? Meet <strong>Pica</strong> — rebuilt for modern desktops.
+          No monthly fees. No cloud accounts. No AI chatbots talking to your photos. Pica is an honest, lightning-fast desktop photo organizer that runs 100% locally on your computer — inspired by the speed and simplicity of Google Picasa.
         </p>
 
         <div class="hero-cta-group">
@@ -217,8 +226,8 @@
             </svg>
             <span>Download for Windows (Free)</span>
           </a>
-          <a href="#features" class="btn-secondary">
-            <span>See What Makes It Special</span>
+          <a href="#no-ai" class="btn-secondary">
+            <span>Why No AI?</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
@@ -230,10 +239,10 @@
             <span class="icon-check" aria-hidden="true">✓</span> 100% Offline &amp; Private
           </span>
           <span class="hero-meta-item">
-            <span class="icon-check" aria-hidden="true">✓</span> Zero Monthly Fees
+            <span class="icon-check" aria-hidden="true">✓</span> Zero AI / No LLMs Inside
           </span>
           <span class="hero-meta-item">
-            <span class="icon-check" aria-hidden="true">✓</span> Windows, Mac &amp; Linux
+            <span class="icon-check" aria-hidden="true">✓</span> Zero Monthly Fees
           </span>
           <span class="hero-meta-item">
             <span class="icon-check" aria-hidden="true">✓</span> Photos Stay in Your Existing Folders
@@ -271,7 +280,7 @@
               <!-- Left Sidebar -->
               <aside class="mockup-sidebar">
                 <div>
-                  <div class="sidebar-group-title">People (Local AI)</div>
+                  <div class="sidebar-group-title">People (Face Groups)</div>
                   <div class="people-faces-row">
                     <div class="face-avatar-pill face-1" title="Mom (48 photos)">M</div>
                     <div class="face-avatar-pill face-2" title="Lucas (82 photos)">L</div>
@@ -424,6 +433,10 @@
               </li>
               <li class="comp-item comp-item-bad">
                 <span class="comp-bullet bullet-bad">✕</span>
+                <span><strong>Forced AI Hype:</strong> Shoves unwanted chatbots and generative gimmicks into your gallery, often scanning photos to train models.</span>
+              </li>
+              <li class="comp-item comp-item-bad">
+                <span class="comp-bullet bullet-bad">✕</span>
                 <span><strong>Folder Lock-In:</strong> Traps photos in proprietary libraries, making it difficult to organize your own files on your disk.</span>
               </li>
             </ul>
@@ -437,6 +450,10 @@
               <h3 class="comp-title">Pica Desktop Photo Manager</h3>
             </div>
             <ul class="comp-list">
+              <li class="comp-item comp-item-good">
+                <span class="comp-bullet bullet-good">✓</span>
+                <span><strong>Zero AI Nonsense:</strong> No chatbots, no LLMs, no generative synthetic fakes, and no training on your photos. Pure native code.</span>
+              </li>
               <li class="comp-item comp-item-good">
                 <span class="comp-bullet bullet-good">✓</span>
                 <span><strong>100% Free Forever:</strong> Zero subscriptions, zero hidden fees, zero ads. Free for personal use.</span>
@@ -454,6 +471,55 @@
                 <span><strong>Your Folders, Your Rules:</strong> Works directly with your existing folders on Windows, Mac, or external hard drives.</span>
               </li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         No AI / Honest Software Section
+         ====================================================================== -->
+    <section id="no-ai" class="section section-no-ai" aria-labelledby="no-ai-heading">
+      <div class="container">
+        <header class="section-header">
+          <div class="no-ai-badge">🛡️ Our Selling Point</div>
+          <h2 id="no-ai-heading" class="section-title">Zero AI Inside. No Chatbots. Just Fast Software.</h2>
+          <p class="section-desc">
+            These days, every app is trying to force an AI chatbot, generative image hallucination, or cloud data scraper into your gallery. We think a photo organizer should just organize your photos.
+          </p>
+        </header>
+
+        <div class="no-ai-grid">
+          <div class="no-ai-card">
+            <div class="no-ai-icon" aria-hidden="true">🚫</div>
+            <h3 class="no-ai-title">No Chatbots or LLMs</h3>
+            <p class="no-ai-desc">
+              You want to look through your vacation memories, not hold a conversation with an AI bot. Pica has zero language models inside.
+            </p>
+          </div>
+
+          <div class="no-ai-card">
+            <div class="no-ai-icon" aria-hidden="true">🔒</div>
+            <h3 class="no-ai-title">No AI Training On Your Photos</h3>
+            <p class="no-ai-desc">
+              Cloud apps scan your faces and private moments to feed corporate AI training datasets. Pica is 100% offline. Not a single pixel ever touches a server.
+            </p>
+          </div>
+
+          <div class="no-ai-card">
+            <div class="no-ai-icon" aria-hidden="true">🖼️</div>
+            <h3 class="no-ai-title">No Generative AI Fakes</h3>
+            <p class="no-ai-desc">
+              No hallucinated backgrounds, fake sky replacements, or distorted memories. When you straighten or crop a photo, your authentic memories remain real.
+            </p>
+          </div>
+
+          <div class="no-ai-card">
+            <div class="no-ai-icon" aria-hidden="true">⚡</div>
+            <h3 class="no-ai-title">Built with AI, Free of AI</h3>
+            <p class="no-ai-desc">
+              Yes, Pica was vibecoded with Gemini (and we're proud of how fast it brought Picasa back!). But the app itself runs pure, compiled native Rust. Zero AI bloat inside.
+            </p>
           </div>
         </div>
       </div>
@@ -494,9 +560,9 @@
           <!-- Feature 3 -->
           <article class="feature-card">
             <div class="feature-icon-wrapper icon-face" aria-hidden="true">👥</div>
-            <h3 class="feature-title">Offline Face Recognition</h3>
+            <h3 class="feature-title">Offline Face Grouping (No Cloud, No LLMs)</h3>
             <p class="feature-text">
-              Find every picture of your children, grandparents, or friends. Pica uses built-in AI running entirely on your computer's processor to group faces automatically.
+              Find every picture of your children, grandparents, or friends. Pica uses classic local computer vision running directly on your computer's CPU to group faces. No cloud APIs, no data sent to OpenAI or Google, and zero internet required.
             </p>
           </article>
 
@@ -810,14 +876,34 @@
 
           <details class="faq-item" name="faq">
             <summary class="faq-question">
-              <span>How does face recognition work without an internet connection?</span>
+              <span>Does Pica have AI or chatbots inside?</span>
               <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="m6 9 6 6 6-6"/>
               </svg>
             </summary>
             <div class="faq-answer">
               <p>
-                Pica includes small, fast artificial intelligence models built directly inside the application. When you open a folder, your computer's own processor detects and groups similar faces locally in seconds. No photos or face embeddings ever leave your device.
+                <strong>No. There is zero AI inside the app.</strong> No LLMs, no chatbots, no generative AI fakes, and no cloud scrapers.
+              </p>
+              <p>
+                The app was developed using AI coding tools (vibecoded with Gemini to resurrect Google Picasa), but the program itself runs 100% native, compiled Rust and web technology on your machine.
+              </p>
+              <p>
+                Face grouping uses lightweight, offline computer vision math right on your computer's CPU—exactly how Picasa did it over 15 years ago, without ever connecting to the internet.
+              </p>
+            </div>
+          </details>
+
+          <details class="faq-item" name="faq">
+            <summary class="faq-question">
+              <span>How does face grouping work without an internet connection?</span>
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                Pica includes small, fast offline computer vision algorithms that run directly on your computer's processor. When you open a folder, your computer finds and groups similar faces locally in milliseconds. No photos or face embeddings ever leave your device.
               </p>
             </div>
           </details>
