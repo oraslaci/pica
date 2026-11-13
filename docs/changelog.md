@@ -7,6 +7,8 @@
 ## [Unreleased] — 2026-11-13
 
 ### 🌐 Official GitHub Pages Website & Search Engine Optimization
+- **Beta Notice & Zero Liability Disclaimer:**
+  - Added clear, prominent disclaimers in the download section, FAQ, and footer highlighting that Pica is an active Beta built with good intentions, provided strictly on an "AS-IS" basis with zero liability or warranties.
 - **Zero AI Inside & Honest Software Positioning:**
   - Added dedicated "Zero AI Inside" section highlighting that Pica contains no LLMs, no chatbots, no generative AI fakes, and no cloud scraping.
   - Transparently disclosed that Pica was developed with AI assistance (vibecoded with Gemini), but the shipped executable runs 100% compiled native Rust with zero AI bloat.

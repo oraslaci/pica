@@ -1235,6 +1235,45 @@ body {
   color: var(--text-muted);
 }
 
+/* Beta Notice & Zero Liability Disclaimer Box */
+.disclaimer-box {
+  max-width: 720px;
+  margin: 36px auto 0;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  text-align: left;
+}
+
+.disclaimer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fcd34d;
+  margin-bottom: 10px;
+}
+
+.disclaimer-icon {
+  font-size: 20px;
+}
+
+.disclaimer-text {
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.disclaimer-text strong {
+  color: #f8fafc;
+}
+
+.disclaimer-text:not(:last-child) {
+  margin-bottom: 8px;
+}
+
 /* ==========================================================================
    FAQ Section (Accordion with <details name="faq">)
    ========================================================================== */
@@ -1361,6 +1400,21 @@ body {
   color: var(--text-muted);
   flex-wrap: wrap;
   gap: 16px;
+}
+
+.footer-disclaimer {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.footer-disclaimer strong {
+  color: #fcd34d;
 }
 
 /* SEO Keyword Cluster Footer Links */
